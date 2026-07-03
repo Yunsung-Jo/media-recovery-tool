@@ -139,12 +139,11 @@ def test_recover_file_skip_copies_original(tmp_path):
 def test_recover_file_failed_preserves_original(tmp_path):
     """무행동(ops 0·hole≥1) 파일은 failed/에 원본 바이트를 보존한다.
 
-    총 MCU가 수락 임계(편집 120·재동기 450) 미만인 소형 이미지는 어떤 편집·
-    재동기도 수락될 수 없어(2026-07-02 사각지대 조사: 임계 잠금), 디싱크가
-    감지되면 무행동으로 끝난다 — 회색 재인코딩본 대신 원본을 남겨야 한다.
-    절단(EOI 없이 엔트로피 후반 소실)은 코퍼스의 실제 사례이며 버퍼 끝 정지가
-    보장되는 결정적 손상이다."""
-    data = encode(textured_image(64, 64, seed=7))    # 4:2:2 → 32 MCU < 120
+    절단(EOI 없이 엔트로피 후반 소실)으로 디싱크 후 잔여 MCU가 수락 바닥(run 30)
+    미만이면 어떤 편집·재동기도 수락될 수 없어 무행동으로 끝난다 — 회색
+    재인코딩본 대신 원본을 남겨야 한다. (임계 비례화 이후에도 30 MCU 바닥은
+    남는다 — 그보다 짧은 꼬리는 진위를 검증할 수 없다.)"""
+    data = encode(textured_image(64, 64, seed=7))    # 4:2:2 → 32 MCU 소형
     h = jd.parse_header(data)
     last_eoi = data.rfind(b'\xff\xd9')
     trunc = data[:h.scan_start + (last_eoi - h.scan_start) * 7 // 10]  # 후반 30% 절단
@@ -156,3 +155,55 @@ def test_recover_file_failed_preserves_original(tmp_path):
     assert out.read_bytes() == trunc                 # 원본 보존
     assert info['ops'] == 0 and info['hole'] >= 1
     assert info['mcus'] == 32
+
+
+# ── 수락 임계 잔여 비례화 (W2) ──────────────────────────────
+
+def fe_hole(data: bytes, frac: float, n_bytes: int) -> bytes:
+    """엔트로피의 frac 지점에 0xFE 채움 hole을 만든다. 0xFE는 Annex-K DC cat-10
+    코드(11111110)라 큰 DC 차분이 연쇄돼 계수 경계를 결정적으로 반복 발동시킨다
+    (무작위 손상은 조밀 코드 공간 탓에 '그럴듯한' 스트림으로 조용히 디코드될 수
+    있어 테스트 재료로 비결정적이다)."""
+    h = jd.parse_header(data)
+    last_eoi = data.rfind(b'\xff\xd9')
+    span = last_eoi - h.scan_start
+    arr = bytearray(data)
+    pos = h.scan_start + int(span * frac)
+    for i in range(n_bytes):
+        arr[pos + i] = 0xFE
+    return bytes(arr)
+
+
+def test_recover_small_image_resync_unlocked():
+    """총 MCU<450 소형 이미지도 재동기가 수락된다(임계 잠금 해제).
+
+    과거 절대 임계(max(250, maxW//2)=450)에서는 총 MCU 256인 이미지의 재동기
+    수락이 산술적으로 불가능했다 — 손상 클러스터 이후 전량 회색(임계 잠금).
+    창 비례 임계(max(30, 0.35·W))는 소형에서도 수락을 허용한다. hole을 2개 둬
+    바이트 오라클 단독으로는 복구가 끝나지 않게 한다."""
+    data = fe_hole(fe_hole(encode(textured_image(128, 256, seed=3)), 0.40, 150), 0.75, 150)
+    dec = jd.Decoder(data)                           # 4:2:2 → 16×16 = 256 MCU
+    assert dec.mcus_x * dec.mcus_y == 256
+    rgb, stats, _segs = resync.recover(dec, time_budget=0)
+    assert stats['resync'] >= 1                      # 절대 임계에서는 불가능했던 수락
+    assert resync.undecoded_fraction(rgb) < 0.3      # hole 이후가 회색으로 남지 않음
+
+
+def test_recover_truncated_tail_resync_via_buffer_end():
+    """버퍼 끝까지 완주하는 후보(stop=3)는 0.35·W 미만이어도 run≥30이면 수락된다.
+
+    절단 파일은 남은 데이터 전체가 이어져도 그 길이(여기선 ~115 MCU)가 창 비례
+    임계(0.35·460=161)에 못 미친다 — 데이터가 소진돼 뒤에 가릴 내용이 없으므로
+    완주 run은 신뢰할 수 있고, 이 규칙이 없으면 hole로 끝나 절단 앞 콘텐츠까지
+    버려진다."""
+    data = encode(textured_image(256, 384, seed=11))  # 4:2:2 → 24×32 = 768 MCU
+    h = jd.parse_header(data)
+    last_eoi = data.rfind(b'\xff\xd9')
+    span = last_eoi - h.scan_start
+    data = fe_hole(data, 0.40, 100)                  # hole 먼저(EOI 존재 시점에 위치 계산)
+    data = data[:h.scan_start + span * 55 // 100]    # 후반 45% 절단
+    dec = jd.Decoder(data)
+    rgb, stats, _segs = resync.recover(dec, time_budget=0)
+    assert stats['resync'] >= 1                      # 완주 규칙에 의한 수락
+    assert stats['hole'] >= 1                        # 데이터 소진 꼬리는 hole로 남음
+    assert rgb.shape == (256, 384, 3)
