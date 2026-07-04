@@ -64,7 +64,8 @@ def main() -> None:
     out_dir = (Path(args.output) if args.output
                else in_dir.parent / (in_dir.name + '_recovered'))
     out_dir.mkdir(parents=True, exist_ok=True)
-    for sub in ('recovered', 'clean', 'failed', 'skip_undecodable', 'error'):
+    for sub in ('recovered', 'header_recovered', 'clean', 'failed',
+                'skip_undecodable', 'error'):
         (out_dir / sub).mkdir(exist_ok=True)
 
     jpeg_files = sorted(in_dir.glob('*.jpg'))
@@ -76,9 +77,11 @@ def main() -> None:
         'filename', 'action', 'gray_before', 'gray_after',
         'undec_before', 'undec_after', 'undec_delta', 'worse', 'recover_sec',
         'ops', 'sub', 'del', 'ins', 'resync', 'hole', 'mcus', 'image_size',
+        'header_fix',
     ]
     counts: dict[str, int] = {}
     stat_rows: list[tuple[str, int, float, float]] = []  # (action, mcus, undec_before, undec_after)
+    hdr_fixes: list[str] = []  # 헤더 복구된 파일의 header_fix 태그 (W3)
     jobs = args.jobs if args.jobs > 0 else (os.cpu_count() or 4)
     work = partial(_work, out_dir=out_dir, quality=args.quality,
                    time_budget=budget, near=near, full=full)
@@ -104,8 +107,11 @@ def main() -> None:
             row['hole'] = info['hole']
             row['mcus'] = info['mcus']
             row['image_size'] = f"{info['width']}x{info['height']}"
+            row['header_fix'] = info.get('header_fix', '')
             stat_rows.append((action, info['mcus'],
                               info['undec_before'], info['undec_after']))
+            if info.get('header_fix'):
+                hdr_fixes.append(info['header_fix'])
         writer.writerow(row)
         counts[action] = counts.get(action, 0) + 1
         if err:
@@ -130,6 +136,15 @@ def main() -> None:
     for action, cnt in sorted(counts.items()):
         print(f'  {action}: {cnt}개')
 
+    # 헤더 복구 요약 (W3) — 교체 세그먼트 조합별 건수 + undec 평균
+    if hdr_fixes:
+        from collections import Counter
+        combos = ', '.join(f'{tag or "(무변경)"} {n}개'
+                           for tag, n in sorted(Counter(hdr_fixes).items()))
+        hr = [r for r in stat_rows if r[0] == 'HEADER_RECOVERED']
+        hua = f", undec_after 평균 {sum(r[3] for r in hr) / len(hr):.3f}" if hr else ''
+        print(f'헤더 복구: {len(hdr_fixes)}개{hua} — {combos}')
+
     # 층화 요약 — 악화·크기 대역이 평균에 가려지지 않게 한다 (백로그 W1)
     rec = [r for r in stat_rows if r[0] == 'RECOVERED']
     if rec:
@@ -143,9 +158,9 @@ def main() -> None:
              if worse else ''))
     bands = [('<120', 0, 120), ('120-449', 120, 450),
              ('450-899', 450, 900), ('>=900', 900, 1 << 60)]
-    graded = [r for r in stat_rows if r[0] in ('RECOVERED', 'FAILED')]
+    graded = [r for r in stat_rows if r[0] in ('RECOVERED', 'HEADER_RECOVERED', 'FAILED')]
     if graded:
-        print('MCU 대역별 (RECOVERED+FAILED):')
+        print('MCU 대역별 (RECOVERED+HEADER_RECOVERED+FAILED):')
         for label, lo, hi in bands:
             grp = [r for r in graded if lo <= r[1] < hi]
             if not grp:

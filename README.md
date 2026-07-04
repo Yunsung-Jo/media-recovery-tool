@@ -64,11 +64,12 @@ output/
 ├── avi/                # 추출된 AVI 파일 (0x{오프셋}.avi)
 ├── errors.log          # 추출 실패 오프셋 및 오류 내역
 └── jpeg_recovered/     # recover.py 출력
-    ├── report.csv          # 전체 복구 결과 (5종 분류 모두 기록)
-    ├── recovered/          # 복구본 (재인코딩 JPEG)
+    ├── report.csv          # 전체 복구 결과 (6종 분류 모두 기록, header_fix 컬럼 포함)
+    ├── recovered/          # 엔진 재동기 복구본 (재인코딩 JPEG)
+    ├── header_recovered/   # 헤더 재구성 복구본 (재인코딩 JPEG, header_fix에 교체 세그먼트)
     ├── clean/              # 손상 없던 원본 복사
     ├── failed/             # 복구 무행동 원본 복사 (회색 재인코딩본 대신 원본 보존)
-    ├── skip_undecodable/   # 디코드 실패 원본 복사
+    ├── skip_undecodable/   # 디코드 실패 원본 복사 (헤더 복구 후보도 못 찾은 파일)
     └── error/              # 워커 예외 원본 복사
 ```
 
@@ -84,10 +85,11 @@ output/
 |------|------|
 | 바이트 오라클 | 손상 지점 부근 바이트를 치환/삭제/삽입해 정렬 복원 (단일바이트 손상) |
 | resync-skip | 다중바이트 손상/구멍은 재개 비트위치를 탐색해 건너뜀. DC 캐리/0 리셋을 함께 시도해 재동기 실패(hole)를 복구 |
+| 헤더 복구 | 헤더(DHT/DQT/SOF/SOS) 손상으로 디코드가 불가한 파일은 도너 테이블 이식·양자화표 교정·SOF/SOS 재구성으로 헤더를 복원해 엔진에 태움. 확신 있는 후보가 없으면 채우지 않음 |
 | 회색 유지 | 물리적으로 소실됐거나 데이터를 소진한 영역은 가짜로 채우지 않고 회색으로 남김 |
 
 색 캐스트(DC=0 리셋의 무채색 포함)·이미지 밀림은 복구 대상이 아니다(구조 복원에 집중).
-자세한 근거는 [ADR 0001](docs/adr/0001-resync-recovery.md)·[ADR 0004](docs/adr/0004-resync-dc-reset-recovery.md), [recover 스펙](docs/specs/0002-recover.md) 참조.
+자세한 근거는 [ADR 0001](docs/adr/0001-resync-recovery.md)·[ADR 0004](docs/adr/0004-resync-dc-reset-recovery.md)·[ADR 0006](docs/adr/0006-header-recovery-structural-gates.md), [recover 스펙](docs/specs/0002-recover.md) 참조.
 
 ## 테스트
 

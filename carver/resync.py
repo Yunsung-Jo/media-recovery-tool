@@ -289,20 +289,55 @@ def recover_file(src_path: Path, out_dir: Path, quality: int = 95,
                  time_budget=90.0, resync_near=300000, resync_full=True):
     """파일 1개를 복구해 out_dir에 저장. 반환 (out_path, action, stats).
 
-    action: RECOVERED | CLEAN | FAILED | SKIP_UNDECODABLE.
+    action: RECOVERED | HEADER_RECOVERED | CLEAN | FAILED | SKIP_UNDECODABLE.
     FAILED = 편집·재동기가 한 번도 수락되지 않고 hole로 종료(무행동) — 재인코딩
     회색본 대신 원본 바이트를 보존한다(입력보다 나쁜 복구본 저장 방지).
-    모든 경우 out_path는 실제 경로다(None 반환 없음).
+    헤더(DHT/DQT/SOF/SOS) 손상 파일은 `carver.headerfix`가 헤더를 재구성해 복구를
+    시도한다(백로그 W3) — 채택 시 `HEADER_RECOVERED`(원본 바이트가 디코드 불가하므로 렌더가
+    유일 산출)로 `header_recovered/`에 저장하고 `header_fix`에 교체 세그먼트를 기록한다.
+    어느 변형도 게이트를 통과 못하면 SKIP. 모든 경우 out_path는 실제 경로다(None 반환 없음).
     time_budget/resync_near/resync_full로 철저함↔속도 조절(→ recover 참조).
     """
+    from carver import headerfix   # 지연 임포트(순환 회피)
     data = src_path.read_bytes()
+    hfix_fn = lambda d: recover(d, time_budget=time_budget,
+                               resync_near=resync_near, resync_full=resync_full)
+
+    def _emit_headerfix(rec, elapsed):
+        dec2, fix, rgb, stats, _segs, gray_p, undec_p = rec
+        info = {
+            'gray_before': gray_p, 'gray_after': gray_fraction(rgb),
+            'undec_before': undec_p, 'undec_after': undecoded_fraction(rgb),
+            'recover_sec': elapsed, 'ops': stats['sub'] + stats['dele'] + stats['ins'] + stats['resync'],
+            'width': dec2.h.width, 'height': dec2.h.height,
+            'mcus': dec2.mcus_x * dec2.mcus_y, 'header_fix': fix, **stats,
+        }
+        # 헤더 복구본은 원본 바이트가 디코드 불가하므로(그래서 SKIP이었다) 렌더가 유일 산출이다 —
+        # CLEAN/FAILED(원본 보존)로 분기하지 않고 별도 action/폴더로 재인코딩 렌더를 저장한다.
+        out_path = out_dir / 'header_recovered' / (src_path.stem + '.jpg')
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_bytes(_to_jpeg(rgb, quality))
+        return out_path, 'HEADER_RECOVERED', info
+
+    # 정상 디코더 구성을 시도한다. 실패하면 헤더 복구가 유일 경로.
+    dec = None
     try:
         dec = jd.Decoder(data)
     except Exception:
+        pass
+    if dec is None:
+        _t0 = time.monotonic()
+        rec = headerfix.reconstruct(data, hfix_fn)
+        if rec is not None:
+            return _emit_headerfix(rec, time.monotonic() - _t0)
+        # 디코드 불가 + 재구성 실패 → SKIP(가짜 채움 금지)
         skip_path = out_dir / 'skip_undecodable' / (src_path.stem + '.jpg')
         skip_path.parent.mkdir(parents=True, exist_ok=True)
         skip_path.write_bytes(data)
         return skip_path, 'SKIP_UNDECODABLE', {}
+
+    # 개구부 probe가 바닥에 못 미치면 헤더 손상 후보다(첫 MCU부터 어긋남).
+    triggered = headerfix.opening_probe(dec) < headerfix.floor_of(dec.mcus_x * dec.mcus_y)
 
     dec.decode_full()
     rgb0 = dec.to_rgb()
@@ -314,6 +349,16 @@ def recover_file(src_path: Path, out_dir: Path, quality: int = 95,
     recover_sec = time.monotonic() - _t0
     after = gray_fraction(rgb)
     after_undec = undecoded_fraction(rgb)
+
+    # 헤더 손상 의심 파일은 헤더 복구를 시도해 정상 경로보다 나을 때만(undec 감소) 채택한다.
+    # Decoder가 구성됐다는 것은 자체 헤더로도 디코드가 되긴 한다는 뜻이므로, 정상 경로가
+    # 강한 베이스라인이다 — 재구성이 이를 무조건 덮으면 잘못된 SOF 해석이 회귀를 낳는다.
+    if triggered:
+        _t1 = time.monotonic()
+        rec = headerfix.reconstruct(data, hfix_fn)
+        if rec is not None and undecoded_fraction(rec[2]) < after_undec - 0.01:
+            return _emit_headerfix(rec, time.monotonic() - _t1)
+
     ops = stats['sub'] + stats['dele'] + stats['ins'] + stats['resync']
     info = {
         'gray_before': before, 'gray_after': after,

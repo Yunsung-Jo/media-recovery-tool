@@ -207,3 +207,58 @@ def test_recover_truncated_tail_resync_via_buffer_end():
     assert stats['resync'] >= 1                      # 완주 규칙에 의한 수락
     assert stats['hole'] >= 1                        # 데이터 소진 꼬리는 hole로 남음
     assert rgb.shape == (256, 384, 3)
+
+
+# ── 헤더 복구 (W3) ──────────────────────────────────────────
+
+def strip_dht(data: bytes) -> bytes:
+    """SOS 이전의 DHT 마커(FFC4)를 FF00으로 무력화해 huff를 비운다(DHT 소실 모사).
+    마커 워크는 길이 기반이라 세그먼트는 그대로 건너뛰어져 스트림이 일관된다."""
+    h = jd.parse_header(data)
+    arr = bytearray(data)
+    i = 2
+    while i < h.scan_start - 1:
+        if arr[i] == 0xFF and arr[i + 1] == 0xC4:
+            arr[i + 1] = 0x00
+        i += 1
+    return bytes(arr)
+
+
+def test_recover_file_header_dht_transplant(tmp_path):
+    """DHT 소실 파일은 도너(Annex-K) 테이블 이식으로 복구된다(HEADER_RECOVERED, header_fix=dht).
+
+    엔트로피가 온전하고 헤더만 손상된 경우 — 현행 엔진(엔트로피만 편집)은 Decoder 구성
+    실패로 SKIP했으나, 헤더 복구 pass가 도너 DHT를 이식해 디코드를 복원한다. PIL 인코더는
+    Annex-K 표준 테이블(도너와 동일 지문 050df0dc)을 쓰므로 이식이 정확히 맞는다.
+    헤더 복구본은 원본이 디코드 불가하므로 recovered/가 아닌 header_recovered/에 저장된다."""
+    raw = encode(textured_image(96, 96, seed=5))
+    src = tmp_path / '0xDEAD00C4.jpg'
+    src.write_bytes(strip_dht(raw))
+    with pytest.raises(ValueError):                  # 소실 확인 — 정상 경로는 거부
+        jd.Decoder(strip_dht(raw))
+    out, action, info = resync.recover_file(src, tmp_path, time_budget=0)
+    assert action == 'HEADER_RECOVERED'
+    assert out.parent == tmp_path / 'header_recovered'
+    assert 'dht' in info['header_fix']
+    assert info['undec_after'] < 0.05                # 엔트로피 온전 → 사실상 완전 복구
+    Image.open(out).load()                           # 유효 JPEG
+
+
+def test_recover_file_header_unrecoverable_stays_skip(tmp_path):
+    """헤더 후보를 못 찾는 손상은 재구성이 None을 반환해 SKIP으로 남는다(가짜 채움 금지)."""
+    src = tmp_path / '0xN0FIX000.jpg'
+    raw = b'\xff\xd8' + bytes(range(200)) * 4 + b'\xff\xd9'   # SOS/SOF/DQT 없음
+    src.write_bytes(raw)
+    out, action, info = resync.recover_file(src, tmp_path, time_budget=0)
+    assert action == 'SKIP_UNDECODABLE'
+    assert out.read_bytes() == raw                   # 원본 보존
+
+
+def test_recover_file_header_truncated_dqt_pattern_no_crash(tmp_path):
+    """DQT len 패턴('00 84')이 파일 끝 근처에 매치돼 테이블 슬라이스가 64B 미만이어도
+    크래시하지 않고 SKIP으로 처리한다(carve 위양성 쓰레기 파일 방어)."""
+    src = tmp_path / '0xTRUNCD00.jpg'
+    raw = b'\xff\xd8' + b'\x00' * 40 + b'\x00\x84\x00\x11\x22'  # 00 84 직후 EOF
+    src.write_bytes(raw)
+    out, action, info = resync.recover_file(src, tmp_path, time_budget=0)
+    assert action == 'SKIP_UNDECODABLE'              # 예외 없이 분류

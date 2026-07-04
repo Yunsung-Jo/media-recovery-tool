@@ -1,6 +1,6 @@
 # recover.py
 
-- **날짜:** 2026-07-03 (최초 2026-06-03; 이번 갱신은 수락 임계 잔여 비례화·데이터-끝 완주 수락 반영)
+- **날짜:** 2026-07-04 (최초 2026-06-03; 이번 갱신은 헤더 복구 pass 반영)
 - **상태:** Accepted
 
 ---
@@ -10,6 +10,8 @@
 `carve.py`가 추출한 손상 JPEG를 **resync 엔진**으로 복구하는 도구.
 바이트 단위로 디싱크(비트 정렬 어긋남) 지점을 짚어 정렬을 복원하고,
 복구 가능한 영역만 복구한 뒤 전체 결과를 `report.csv`로 저장한다.
+헤더(DHT/DQT/SOF/SOS)가 손상돼 디코더 구성이 불가한 파일은 **헤더 복구 pass**가
+헤더를 재구성해 엔진에 태운다([ADR 0006](../adr/0006-header-recovery-structural-gates.md)).
 설계 근거는 [ADR 0001](../adr/0001-resync-recovery.md) 참조.
 
 ## 인터페이스
@@ -35,26 +37,30 @@
 
 ```
 <output>/
-  report.csv              # 파일별 복구 결과 (5종 모두 기록)
-  recovered/              # 재인코딩된 복구본 (RECOVERED)
+  report.csv              # 파일별 복구 결과 (6종 모두 기록)
+  recovered/              # 엔진 재동기로 복구한 재인코딩본 (RECOVERED)
+  header_recovered/       # 헤더 재구성으로 복구한 재인코딩본 (HEADER_RECOVERED)
   clean/                  # 손상 없던 원본 복사 (CLEAN)
   failed/                 # 무행동(편집·재동기 0회, hole 종료) 원본 복사 (FAILED)
   skip_undecodable/       # 디코드 실패 원본 복사 (SKIP_UNDECODABLE)
   error/                  # 워커 예외 발생 원본 복사 (ERROR)
 ```
 
-`main`이 실행 전 다섯 서브폴더를 미리 생성하므로,
+`main`이 실행 전 여섯 서브폴더를 미리 생성하므로,
 해당 분류 파일이 없더라도 폴더는 항상 존재한다.
-`report.csv`는 최상위에 위치하며 5종 분류를 모두 기록한다.
+`report.csv`는 최상위에 위치하며 6종 분류를 모두 기록한다.
 FAILED는 회색 위주 재인코딩본이 입력 plain 디코드보다 항상 나쁘므로 **원본 바이트를
-보존**한다 — 후속 pass(수락 임계 비례화·헤더 복구)가 같은 파일을 재시도할 수 있다.
+보존**한다 — 후속 pass가 같은 파일을 재시도할 수 있다.
+**헤더 복구본**은 원본 바이트가 디코드 불가하므로(그래서 SKIP이었다) 렌더가 유일 산출이다 —
+CLEAN/FAILED(원본 보존)로 분기하지 않고 별도 action `HEADER_RECOVERED`로 `header_recovered/`에
+재인코딩본을 저장하고 `header_fix`에 교체 세그먼트를 기록한다.
 
 `report.csv` 컬럼:
 
 | 컬럼 | 설명 |
 |------|------|
 | `filename` | 원본 파일명 |
-| `action` | `RECOVERED` / `CLEAN` / `FAILED` / `SKIP_UNDECODABLE` / `ERROR` |
+| `action` | `RECOVERED` / `HEADER_RECOVERED` / `CLEAN` / `FAILED` / `SKIP_UNDECODABLE` / `ERROR` |
 | `gray_before` / `gray_after` | 복구 전/후 회색(평탄·무채색) 픽셀 비율 (0.0–1.0) |
 | `undec_before` / `undec_after` | 복구 전/후 미복구 회색(RGB≈128 + 평탄) 비율 — 무채색 착시 없는 진짜 복구율([ADR 0004](../adr/0004-resync-dc-reset-recovery.md)). DC=0 리셋의 무채색 콘텐츠를 회색으로 오집계하지 않는다 |
 | `undec_delta` | `undec_after − undec_before` (부호 포함). 복구가 지표를 악화시킨 파일을 정렬·필터로 즉시 드러낸다 |
@@ -66,16 +72,20 @@ FAILED는 회색 위주 재인코딩본이 입력 plain 디코드보다 항상 �
 | `hole` | 복구 불가로 중단한 횟수 |
 | `mcus` | 실제 MCU 총수(`mcus_x×mcus_y`) — 수락 임계 잠금(MCU<450) 분석용 |
 | `image_size` | SOF 해상도 (`WxH`) |
+| `header_fix` | 헤더 복구로 교체한 세그먼트 조합(`dht`·`dqt`·`sof`·`sos`를 `+`로 연결, 예 `dht+dqt+sof+sos`). 헤더 복구가 아니면 빈 값 |
 
 실행 종료 시 콘솔에 **층화 요약**을 출력한다: action별 건수, RECOVERED undec 평균(전→후),
-악화 건수(action별), MCU 대역별(<120 / 120–449 / 450–899 / ≥900) RECOVERED+FAILED의
-undec_after 평균과 >0.15 건수 — 평균에 가려지는 소형·악화 케이스를 실행 직후 드러낸다.
+악화 건수(action별), MCU 대역별(<120 / 120–449 / 450–899 / ≥900) RECOVERED+HEADER_RECOVERED+FAILED의
+undec_after 평균과 >0.15 건수, **헤더 복구 건수·조합·undec 평균** — 평균에 가려지는 소형·악화
+케이스를 실행 직후 드러낸다.
 
 ## 파이프라인
 
 1. **JPEG 목록 수집** (`recover.py`) — 입력 디렉토리에서 `*.jpg`를 정렬한다.
 2. **복구** (`carver/resync.py::recover_file`) — 파일마다:
-   - `carver/jpegdecode.py`로 디코더 구성(3-component baseline만 지원, 아니면 `SKIP_UNDECODABLE`).
+   - `carver/jpegdecode.py`로 디코더 구성(3-component baseline만 지원).
+   - **디코더 구성 실패, 또는 구성됐으나 개구부 probe가 바닥 미만**(헤더 손상 의심)이면
+     헤더 복구 pass(`carver/headerfix.py`)를 시도한다(아래 "헤더 복구").
    - 전체 디코드로 `gray_before` 측정.
    - `recover()`가 디싱크 지점마다 바이트 오라클(치환/삭제/삽입) → 실패 시 resync-skip을 적용.
    - 복구본을 RGB로 렌더 → JPEG로 재인코딩 저장. `gray_after`·편집 통계 반환.
@@ -165,6 +175,55 @@ frontier *이후*에만 일어난다. 따라서 이미 확정된 앞쪽 세그�
 - **보류(미해결):** 색 캐스트(DC=0 리셋의 무채색 포함), 이미지 밀림. 구조 복원에 집중한다.
 - **남김:** 물리적으로 소실된 영역·데이터 소진 구간은 가짜로 채우지 않고 회색으로 둔다.
 
+## 헤더 복구 (`carver/headerfix.py`)
+
+resync 엔진은 엔트로피 스트림만 편집하므로, 헤더(DHT/DQT/SOF/SOS)가 손상돼 디코더 구성이
+불가하거나 첫 MCU부터 어긋나는 파일은 엔진에 태울 수 없다. 헤더 복구 pass는 손상된 헤더를
+재구성해 이 파일들을 엔진의 입력으로 되돌린다. 설계 근거·기각 대안은
+[ADR 0006](../adr/0006-header-recovery-structural-gates.md).
+
+### 트리거
+
+파일마다 `Decoder` 구성을 시도한다. **구성이 실패**하거나, 구성됐더라도 **개구부 probe**
+(bit 0·MCU 0·DC 0에서 경계+rate clean run)가 바닥 `min(30, (총MCU+1)//2)`에 못 미치면(헤더
+손상으로 첫 MCU부터 어긋남) 헤더 복구를 시도한다. 그 외에는 정상 경로다.
+
+### 후보 재구성
+
+`docs/reference/`의 마커 지식과 코퍼스 정형(같은 카메라 헤더)을 이용해, 마커·길이 오염을
+허용하는 **관용 스캔**으로 헤더 후보를 모은다:
+
+- **SOS**: 12바이트 정형 body(`00 0C 03 01 00 02 11 03 11 00 3F 00`)를 채점(마커 일치 가점),
+  scan_start는 길이 필드 오염과 무관하게 템플릿 고정.
+- **SOF**: `00 11 08`(len 17·precision 8) 패턴으로 해상도·컴포넌트를 추출(마커 바이트 오염 허용).
+- **DQT**: 자체 파싱 + FFDB 세그 재파싱(Pq 니블 오염 무시) + 길이 패턴 재접속 + 각 세트의
+  **이웃 스무딩판**(양자화표 이상치를 이웃 중앙값으로 교정).
+- **DHT**: 자체 4클래스 완비판 / 자체 + 도너 채움 / 도너 전체. 도너는 ITU T.81 Annex-K 전형
+  4테이블을 코드에 하드코딩한 것이다(코퍼스 다수파와 값 단위 일치 —
+  [레퍼런스 §허프만 테이블의 출처](../reference/jpeg-entropy-coding.md)).
+
+치수(파싱값 + 코퍼스 same-W 대체)·샘플링{(2,2),(2,1)}·템플릿 고정 필드(comp ids 1,2,3·qids
+0,1,1·표준 SOS)를 조합해 변형을 열거한다.
+
+### 채택 게이트 (구조 신호)
+
+자체 헤더가 구조 완비면 자체 구조+테이블 교체 변형을 최우선(own-first)으로 두고, 이어 치수
+픽셀 수 내림차순 그룹으로 내려가며 각 후보를 다음으로 판정한다:
+
+- **probe 바닥**: 개구부 probe ≥ `min(30, (총MCU+1)//2)`.
+- **소비율**(fit==1, 전 MCU 디코드): scan_start부터 소비한 바이트를 `scan_start→그 뒤 첫 FFD9`
+  (없으면 EOF) 길이로 나눈 값이 **0.25~1.1**. 하한은 치수 과소 해석(쓰레기 완주), 상한은 첫
+  FFD9를 관통한 위해석을 거른다.
+- **엔진 결과**: `recover()` 후 undec < 0.95. 완결 주장(undec < 0.05)이면 소비율 ≥ 0.25 재확인.
+
+전 후보가 게이트를 통과하지 못하면 재구성은 실패로 처리하고 SKIP을 유지한다(가짜 채움 금지).
+**Decoder가 구성된 파일**은 정상 경로가 강한 베이스라인이므로, 헤더 복구가 정상 경로보다
+undec를 낮출 때만(−0.01 초과) 채택해 회귀를 막는다. 진위 판정을 렌더 통계·픽셀 상관·코퍼스
+prior로 하지 않는 이유는 [ADR 0006](../adr/0006-header-recovery-structural-gates.md) 참조.
+
+채택된 파일은 `HEADER_RECOVERED`로 분류해 `header_recovered/`에 저장하고 `header_fix`에 교체
+세그먼트를 기록한다(엔진 재동기 복구 `RECOVERED`와 폴더·분류가 분리된다).
+
 ## 성능 특성
 
 파일당 처리 시간은 손상 지점 수에 비례한다. 무거운 파일(편집·재동기 수십 회)은 `_best_edit`의
@@ -181,16 +240,19 @@ frontier *이후*에만 일어난다. 따라서 이미 확정된 앞쪽 세그�
 
 - `carver/jpegdecode.py` — 비트 단위 baseline JPEG 디코더(numba)
 - `carver/resync.py` — 바이트 오라클 + 세그먼트 resync 복구 엔진
+- `carver/headerfix.py` — 헤더(DHT/DQT/SOF/SOS) 재구성 pass([ADR 0006](../adr/0006-header-recovery-structural-gates.md))
 
 ## 의존하는 포맷 / 스펙
 
 - [JPEG 마커 구조](../reference/jpeg-markers.md)
+- [JPEG 엔트로피 코딩 — Annex-K 도너 테이블·조밀 코드 공간](../reference/jpeg-entropy-coding.md)
 
 ## 엣지 케이스
 
 | 상황 | 동작 (`action`) | 저장 위치 |
 |------|-----------------|-----------|
-| 헤더 파싱 실패 / 3-component baseline 아님 / **DHT 소실·손상(컴포넌트가 참조하는 허프만 테이블 부재)** | `SKIP_UNDECODABLE` | `skip_undecodable/` — 원본 바이트 복사 |
+| 헤더 손상(DHT/DQT/SOF/SOS)으로 디코더 구성 불가 **+ 헤더 복구 pass가 게이트 통과 후보를 못 찾음** | `SKIP_UNDECODABLE` | `skip_undecodable/` — 원본 바이트 복사 |
+| **헤더 손상이지만 재구성 후보가 게이트를 통과** | `HEADER_RECOVERED` | `header_recovered/` — 재인코딩 복구본, `header_fix` 기록 |
 | 손상 없음(편집 0회 & 회색 < 2%) | `CLEAN` | `clean/` — 원본 바이트 복사 |
 | 무행동(편집·재동기 0회 & hole ≥ 1 & 회색 ≥ 2%) — 수락 임계 잠금·데이터 소실 등 | `FAILED` | `failed/` — 원본 바이트 복사(회색 재인코딩본을 저장하지 않음) |
 | 디싱크 지점을 바이트 편집/재동기로 복원 | `RECOVERED` | `recovered/` — 재인코딩된 복구본 |
@@ -198,9 +260,11 @@ frontier *이후*에만 일어난다. 따라서 이미 확정된 앞쪽 세그�
 | 물리적으로 소실된 영역(재동기 지점 없음) | 해당 영역은 회색으로 남김(가짜 채움 금지), 나머지는 복구 | — |
 | 입력 디렉토리 없음 | 오류 출력 후 exit code 1 | — |
 
-분류 판정 순서는 SKIP → CLEAN → FAILED → RECOVERED다. CLEAN이 FAILED보다 먼저이므로
-"편집 0회·회색 < 2%"는 hole 여부와 무관하게 CLEAN이다. FAILED의 `undec_after` 등 지표는
-**저장하지 않은 렌더**(plausibility 정지 렌더)에서 측정한 값이다 — 저장물은 원본 바이트.
+분류 판정은 먼저 헤더 손상 여부(디코더 구성 실패 또는 개구부 probe<바닥)로 갈린다 — 헤더 복구가
+채택되면 `HEADER_RECOVERED`, 아니면 정상 경로에서 SKIP → CLEAN → FAILED → RECOVERED 순으로
+판정한다. CLEAN이 FAILED보다 먼저이므로 "편집 0회·회색 < 2%"는 hole 여부와 무관하게 CLEAN이다.
+FAILED의 `undec_after` 등 지표는 **저장하지 않은 렌더**(plausibility 정지 렌더)에서 측정한 값이다
+— 저장물은 원본 바이트.
 
 ## 미해결(별도 과제)
 
@@ -211,7 +275,7 @@ frontier *이후*에만 일어난다. 따라서 이미 확정된 앞쪽 세그�
 
 2026-07-02 발견 세션에서 확인된 **현행 동작의 추가 한계** (원인·실증은 [사각지대 조사](../investigations/2026-07-02-recovery-tool-blindspots.md)·[blocky·밀림 조사](../investigations/2026-07-02-blocky-shift-dc-offset.md), 후속 계획은 [백로그 W1~W6](../backlog.md)):
 
-- ~~**수락 임계 잠금**~~ — **해소(2026-07-03, [ADR 0005](../adr/0005-scaled-accept-threshold.md))**: 수락 임계가 잔여 비례(`max(30, 0.35W)`)+데이터-끝 완주 규칙으로 바뀌어 소형·연속 손상 간격<450 파일도 재동기가 수락된다(전수 FAILED 66→15, 파일별 회귀 0). 잔여 FAILED는 대부분 헤더 손상·초소형(백로그 W3)과 절단·데이터 한계다. 단 **run<30 꼬리는 여전히 수락 불가**(진위 검증 신호 부재)로 회색으로 남는다.
-- **헤더 손상 미복구** — 엔진은 엔트로피 스트림(`dec.buf`)만 편집하므로 DHT/SOF/SOS 등 헤더 손상은 복구 범위 밖이다(SKIP_UNDECODABLE의 실제 주원인). `Decoder`의 빈 huff 미검증 버그는 해결됐다(2026-07-02 — 컴포넌트가 참조하는 테이블 부재 시 거부 → SKIP으로 정분류).
-- **재동기 세그먼트의 밀림·색 캐스트** — 재개 비트의 실제 MCU 인덱스(건너뛴 hole의 MCU 수)를 알 수 없어 세그먼트마다 수평 오프셋이 누적되고, DC=0 리셋으로 세그먼트별 색 캐스트가 생긴다(복원 콘텐츠의 육안 지배 결함).
+- ~~**수락 임계 잠금**~~ — **해소(2026-07-03, [ADR 0005](../adr/0005-scaled-accept-threshold.md))**: 수락 임계가 잔여 비례(`max(30, 0.35W)`)+데이터-끝 완주 규칙으로 바뀌어 소형·연속 손상 간격<450 파일도 재동기가 수락된다(전수 FAILED 66→15, 파일별 회귀 0). 잔여 FAILED는 절단·데이터 한계다. 단 **run<30 꼬리는 여전히 수락 불가**(진위 검증 신호 부재)로 회색으로 남는다.
+- ~~**헤더 손상 미복구**~~ — **해소(2026-07-04, [ADR 0006](../adr/0006-header-recovery-structural-gates.md))**: 헤더 복구 pass(`carver/headerfix.py`)가 DHT 이식·DQT 스무딩·SOF/SOS 재구성으로 헤더 손상 파일을 엔진에 태운다(전수 SKIP 126→71·FAILED 15→11, 헤더 복구 61건, 유지 파일 회귀 0). 잔여 SKIP 71 = 재료 부족(비카메라 대역 carve 위양성·조각 의심)이 대부분 — carve 정밀도·단편화(백로그 W6)의 영역이다.
+- **재동기 세그먼트의 밀림·색 캐스트** — 재개 비트의 실제 MCU 인덱스(건너뛴 hole의 MCU 수)를 알 수 없어 세그먼트마다 수평 오프셋이 누적되고, DC=0 리셋으로 세그먼트별 색 캐스트가 생긴다(복원 콘텐츠의 육안 지배 결함). 헤더 복구본도 이 결함을 그대로 보유한다(백로그 W4·W5).
 - **온전성 판별의 한계** — "무효 코드 없이 디코드됨"은 스트림 온전성의 증거가 아니다(조밀 코드 공간·DC 물리 범위 — [레퍼런스 §디싱크 판별의 불변량](../reference/jpeg-entropy-coding.md)). clean run 채점은 저엔트로피 구간에서 정렬 판별력이 없다. **DC 물리 범위 불변량도 재동기 후보의 수락/기각 필터로는 쓸 수 없다** — 복구 출력·probe 창이 리셋 오프셋·잔존 드리프트로 불변량을 일상적으로 위반한다(실증·재도입 금지 제약: [ADR 0005](../adr/0005-scaled-accept-threshold.md)).

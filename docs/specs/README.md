@@ -7,7 +7,7 @@
 | 제목 | 요약 | 날짜 |
 |------|------|------|
 | [carve.py](0001-carve.md) | 디스크 이미지에서 JPEG/AVI 시그니처 기반 추출 | 2026-05-28 |
-| [recover.py](0002-recover.md) | 추출된 손상 JPEG를 resync(바이트 오라클+재동기)로 복구 | 2026-07-02 |
+| [recover.py](0002-recover.md) | 추출된 손상 JPEG를 resync(바이트 오라클+재동기) + 헤더 복구로 복구 | 2026-07-04 |
 
 ## Draft
 
