@@ -105,6 +105,27 @@
 - **수정 후보:** `11 08`(precision) 앵커 + FFC0/FFC2 근접 + dims sane 검증으로 길이 오염 허용. 나머지 5건은
   DQT후보=0·probe 미달·과다카빙(C1)이라 별도.
 
+### ~~C4. JPEG 과다 카빙이 AVI 삼킴 — carve 정밀도~~ — 완료 (2026-07-05, `fix/jpeg-overcarve-avi`)
+
+- **문제:** JPEG 경계를 앞으로 미는 세 경로(`_next_header`·SOS `upper`·`_corrupt_boundary`)가 다음 AVI(RIFF)
+  시그니처를 경계로 인식하지 않아, AVI 바로 앞 절단·손상 JPEG이 AVI를 삼켰다(AVI 내부 MJPEG 프레임을 다음
+  헤더로 잡거나 10 MB fallback). carve embedded-skip으로 AVI가 손실. usb.img 44개 AVI 중 5개 손실(OLD 2건 →
+  C1 후 5건, C1이 4 유발·1 해소). AVI 추출(`avi_end`) 자체는 과다카빙 아님(0/39).
+- **구현:** `_next_avi(data, start, hi)` 하드 경계를 SOF `upper`·`_corrupt_boundary`에 삽입. RIFF+AVI 12바이트
+  구조는 JPEG 내부 정상 등장 불가라 saw_sof여도 안전(next_sig 일괄은 EXIF 썸 절단이라 기각). 상세는
+  [ADR 0008](adr/0008-jpeg-boundary-stops-at-avi.md)·[carve 스펙](specs/0001-carve.md)·[조사](investigations/2026-07-05-avi-overcarve-and-duration.md)·[보고서](reports/2026-07-05-avi-overcarve-fix.md).
+- **결과** (재카빙 `output_c2` + `recover --time-budget 0`): **AVI 39→44**(5개 carve=OK, 손실 0), 사용가능
+  사진 **884→884**(공통 978 action 변화 0), JPEG 999→978(−21은 AVI 내부 MJPEG 프레임, c1 전부 SKIP), ERROR 0.
+  회귀 테스트 4개, 전체 65→69 통과.
+
+### C5. AVI 인덱스/재생시간 리페어 — 별도 후처리
+
+- **문제:** 추출 AVI를 플레이어로 열면 재생시간이 수백 시간(274~1401h, "541시간")으로 표시. **카빙과 무관**
+  (carve=OK·경계 직후 제로 패딩=idx1 미절단). 원인은 원본이 `idx1` 인덱스 없이 녹화(38/39)+플레이어가 오디오
+  스트림 `dwLength`(8000Hz 샘플 수, 예 1,451,577)를 초로 오독. 영상 데이터·정상 계산(length/rate=3분)은 온전.
+- **수정 후보:** 추출 후처리로 `idx1` 인덱스 재생성(`movi` 청크 스캔). recover와 별개의 AVI 리페어 단계.
+  carve/recover 파이프라인 밖. 상세: [조사 2026-07-05](investigations/2026-07-05-avi-overcarve-and-duration.md) 5단계.
+
 ## 보류 (독립 항목으로 유지하지 않음)
 
 | 항목 | 처리 |

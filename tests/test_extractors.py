@@ -208,6 +208,56 @@ def test_parse_header_truncated_dht_no_crash():
     assert h is not None
 
 
+# ── jpeg_end AVI 경계(과다 카빙이 AVI 삼킴 방지) 테스트 ──────────
+
+def test_next_avi_finds_signature_within_bound():
+    """_next_avi는 [start, hi) 안의 첫 RIFF…AVI 오프셋을 반환하고, 없으면 hi를 반환한다.
+    RIFF지만 AVI 아님(WAV 등)은 무시하고, hi 밖 시그니처도 무시한다."""
+    from carver.extractors import _next_avi
+    data = b'\x00' * 50 + make_avi(chunk_size=100) + b'\x00' * 50
+    assert _next_avi(data, 0, len(data)) == 50        # 첫 AVI 시그니처
+    assert _next_avi(data, 51, len(data)) == len(data)  # 시그니처 지난 뒤 → 없음(hi)
+    assert _next_avi(data, 0, 40) == 40               # AVI가 hi(40) 밖 → hi
+    wav = b'\x00' * 10 + b'RIFF' + struct.pack('<I', 100) + b'WAVE' + b'\x00' * 10
+    assert _next_avi(wav, 0, len(wav)) == len(wav)     # WAVE는 AVI 아님 → 무시
+
+
+def test_jpeg_end_sos_overshoot_stops_at_avi():
+    """SOS 이후 진짜 EOI를 못 찾고 상한까지 가는 절단 JPEG이 뒤따르는 AVI(RIFF)를 삼키지
+    않고 AVI 시작점에서 끊는다(과다 카빙이 AVI 삼킴 방지, 조사 2026-07-05)."""
+    sos = b'\xff\xda' + struct.pack('>H', 12) + b'\x01\x01\x00\x00\x3f\x00\x00\x00\x00\x00'
+    entropy = b'\x12\x34' * 100  # FF 없음 → 진짜/가짜 EOI 후보 없음, 상한까지 진행
+    avi = make_avi(chunk_size=2000)
+    data = b'\xff\xd8' + APP0 + SOF0 + sos + entropy + avi + b'\x00' * 2000
+    avi_off = data.index(b'RIFF')
+    end, complete = jpeg_end(data, 0, next_sig_offset=avi_off)
+    assert end == avi_off          # AVI 시그니처에서 경계(삼키지 않음)
+    assert complete is False
+
+
+def test_jpeg_end_corrupt_dht_bounds_at_avi():
+    """SOF 뒤 DHT 길이 손상 시, 다음 JPEG 헤더가 없어도 뒤따르는 AVI(RIFF)에서 경계를
+    축소해 AVI를 삼키지 않는다."""
+    avi = make_avi(chunk_size=3000)
+    dht_payload = b'\x00' * 80 + avi + b'\x00' * 1200  # ≥1201(손상), AVI 포함, JPEG 헤더 없음
+    corrupt_dht = b'\xff\xc4' + struct.pack('>H', len(dht_payload) + 2) + dht_payload
+    data = b'\xff\xd8' + APP0 + SOF0 + corrupt_dht + b'\x00' * 8
+    avi_off = data.index(b'RIFF')
+    end, complete = jpeg_end(data, 0, next_sig_offset=len(data))
+    assert end == avi_off
+    assert complete is False
+
+
+def test_jpeg_end_valid_jpeg_then_avi_ends_at_eoi():
+    """진짜 EOI로 끝나는 정상 JPEG은 뒤에 AVI가 있어도 EOI에서 끝난다(_next_avi가 조기
+    절단하지 않음 — 회귀 방지)."""
+    jpg = make_jpeg(APP0, SOF0)  # EOI 포함
+    data = jpg + make_avi(chunk_size=1000) + b'\x00' * 1000
+    end, complete = jpeg_end(data, 0, next_sig_offset=len(jpg))
+    assert end == len(jpg)         # EOI 직후
+    assert complete is True
+
+
 # ── avi_end 테스트 ───────────────────────────────────────────
 
 def make_avi(chunk_size: int | None = None, extra: bytes = b'') -> bytes:

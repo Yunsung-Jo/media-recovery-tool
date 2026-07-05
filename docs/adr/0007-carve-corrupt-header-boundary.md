@@ -87,5 +87,6 @@ carve `jpeg_end`(`carver/extractors.py`)의 헤더 마커 워크는 세그먼트
 
 - [ADR 0002](0002-carve-eoi-validation.md) — 같은 모듈의 가짜 EOI 검증(상보적).
 - [ADR 0006](0006-header-recovery-structural-gates.md) — 손상 첫 이미지 복원을 맡는 recover 헤더 복구.
+- [ADR 0008](0008-jpeg-boundary-stops-at-avi.md) — 이 경계 결정을 AVI(RIFF) 시그니처로 확장(JPEG이 뒤 AVI 삼킴 방지).
 - [carve 스펙](../specs/0001-carve.md)·[조사 기록 2026-07-05](../investigations/2026-07-05-carve-overcarve-fix.md)·[과다 카빙 발견 조사 2026-07-04](../investigations/2026-07-04-overcarve-buried-images.md).
 - 포맷 지식: [JPEG 마커 구조](../reference/jpeg-markers.md).
