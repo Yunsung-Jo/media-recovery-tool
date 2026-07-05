@@ -65,7 +65,7 @@ def parse_header(data: bytes) -> Header:
             break
         seg_len = (data[i] << 8) | data[i + 1]
         p = i + 2
-        end = i + seg_len
+        end = min(i + seg_len, n)  # 손상/절단 세그먼트 길이가 버퍼를 넘어 인덱스 초과하는 것 방지
         if m == 0xDB:  # DQT
             q = p
             while q < end:

@@ -54,6 +54,31 @@ def _next_header(data: _Data, start: int, size: int) -> int:
         p = i + 1
 
 
+# 헤더 세그먼트 길이 sane 상한 — 초과 시 손상된 길이 필드로 본다. 마커 워크가 손상된 길이를
+# 신뢰해 임베디드 이미지 위로 점프하는 과다 카빙 방지(조사 2026-07-05). DHT/DQT/DRI.
+_SEG_SANE_MAX = {0xC4: 1200, 0xDB: 600, 0xDD: 10}
+
+
+def _seg_sane_max(mb: int) -> int | None:
+    """마커별 세그먼트 길이 상한. APPn(E0-EF)·COM(FE)은 ≤65535라 제한 없음(None)."""
+    if mb in _SEG_SANE_MAX:
+        return _SEG_SANE_MAX[mb]
+    if 0xC0 <= mb <= 0xCF and mb not in (0xC4, 0xC8, 0xCC):  # SOF (DHT/JPG/DAC 제외)
+        return 100
+    return None
+
+
+def _corrupt_boundary(data: _Data, corrupt_pos: int, offset: int, size: int,
+                      saw_sof: bool, next_sig_offset: int | None) -> int:
+    """헤더 손상 검출 시 경계 — 다음 진짜 이미지 헤더로 축소해 뒤따르는 임베디드 이미지를 별도
+    히트로 만든다(과다 카빙 복구). 단 SOF 도달 전 손상(=유효 이미지 아님, 위양성)이면 다음
+    시그니처로 타이트하게 잡아 디스크 낭비·연쇄 삼킴을 막는다."""
+    cap = min(_next_header(data, corrupt_pos, size), offset + JPEG_MAX_FALLBACK_SIZE, size)
+    if not saw_sof and next_sig_offset is not None and next_sig_offset < cap:
+        return next_sig_offset
+    return cap
+
+
 def jpeg_end(
     data: _Data,
     offset: int,
@@ -67,6 +92,12 @@ def jpeg_end(
     엔트로피 시작 이후의 다음 JPEG 헤더(_next_header)로, 다음 파일을 침범하지
     않는다. next_sig_offset은 SOS를 찾지 못한 경우의 fallback에만 쓴다.
 
+    헤더 마커 워크는 세그먼트 길이를 신뢰해 전진하므로, 손상된 길이 필드나
+    엔트로피성 바이트(FF00 등, 0xC0 미만)를 만나면 뒤따르는 임베디드 이미지 위로
+    점프해 과다 카빙된다. 이를 막기 위해 유효마커(mb≥0xC0)·마커별 길이 상한
+    (_seg_sane_max)을 검증하고, 위반 시 _corrupt_boundary로 경계를 축소한다
+    (조사 2026-07-05).
+
     Returns:
         (end_offset, is_complete)
         end_offset: 파일 마지막 바이트 다음 위치 (exclusive)
@@ -78,6 +109,7 @@ def jpeg_end(
     if data[pos:pos + 2] != b'\xff\xd8':
         raise ValueError(f'SOI 없음: {offset:#x}')
     pos += 2
+    saw_sof = False  # SOF 도달 여부 — 손상 시 경계 선택(진짜 헤더 vs 다음 시그니처)에 쓴다
 
     while pos < size - 1:
         if data[pos] != 0xFF:
@@ -131,12 +163,24 @@ def jpeg_end(
             pos += 2
             continue
 
+        if 0xC0 <= mb <= 0xCF and mb not in (0xC4, 0xC8, 0xCC):  # SOF 도달
+            saw_sof = True
+
+        # 유효마커 검증: 0xC0 미만은 헤더 마커가 아니다(엔트로피 FF00·쓰레기 바이트).
+        # 마커 워크가 엔트로피에 진입한 것이므로 경계를 다음 진짜 헤더로 축소한다.
+        if mb < 0xC0:
+            return _corrupt_boundary(data, pos, offset, size, saw_sof, next_sig_offset), False
+
         # 길이 있는 세그먼트
         if pos + 4 > size:
             break
         seg_len = struct.unpack('>H', data[pos + 2:pos + 4])[0]
         if seg_len < 2 or pos + 2 + seg_len > size:
             break  # 비정상 길이 → fallback
+        # 길이 검증: 마커별 상한 초과 = 손상된 길이 필드(임베디드 이미지 위로 점프 방지)
+        sane = _seg_sane_max(mb)
+        if sane is not None and seg_len > sane:
+            return _corrupt_boundary(data, pos, offset, size, saw_sof, next_sig_offset), False
         pos = pos + 2 + seg_len
 
     # Fallback

@@ -73,18 +73,21 @@
 > 근거·수치·재현은 [과다 카빙 묻힌 이미지 조사](investigations/2026-07-04-overcarve-buried-images.md).
 > W1~W6과 달리 **C1은 carve 단계** 문제라 성격이 다르다 — 순서는 사용자 승인 대기.
 
-### C1. 과다 카빙 embedded-skip 이미지 손실 — carve 정밀도 (최대 레버)
+### ~~C1. 과다 카빙 embedded-skip 이미지 손실 — carve 정밀도~~ — 완료 (2026-07-05, `feat/carve-overcarve`)
 
-- **문제:** `jpeg_end`가 진짜 EOI를 못 찾으면 다음 시그니처/10MB까지 과다 경계를 잡고(extractors.py:143-145),
-  carve가 그 범위 내부 `FFD8FF` 히트를 embedded로 건너뛴다(carve.py:44-56). 연속 이미지가 한 파일로
-  뭉치고 내부 진짜 JPEG이 소거된다.
-- **규모:** 캐리어 5개(0xC8A59000·0xCA067000·0xCA9C5000·0xCE4CF000·0x92EC750C), 묻힌 디코드가능
-  **62장(사진 38·썸 24), 별도 추출 0 = 전부 손실**. 캐리어 3개는 HEADER_RECOVERED 오분류. 다수 undec 0.00
-  완전 디코드(일부 색밴드·시안 캐스트·undec 0.18~0.34 부분). `usb.img`(3.5GB) 보존 → 재카빙 가능.
-- **수정 후보:** (a) carve 경계 수정(과다 fallback 시 embedded 시그니처를 경계로) + 재카빙 — 근본이나
-  전수 재추출·재복구, (b) 기존 캐리어 de-bury(내부 FFD8FFE0/E1 분리추출) — 재카빙 없이 국소. 순수 위양성
-  4개(162/46/18/10MB, 내부 진짜 서명 0)는 별개 — 수정해도 디스크 절약뿐.
-- **의존:** 재카빙(a)은 W1~W6 전체 베이스라인을 갱신하므로 순서 신중.
+- **문제:** `jpeg_end` 마커 워크가 손상된 세그먼트 길이·비마커 바이트(`FF00` 등)를 신뢰해 뒤따르는
+  진짜 이미지 위로 점프, carve가 그 범위 내부 `FFD8FF` 히트를 embedded로 건너뛰어(carve.py:44-59)
+  연속 이미지가 한 파일로 뭉치고 내부 진짜 JPEG이 소거됐다.
+- **구현:** `jpeg_end`에 유효마커(mb≥0xC0)·마커별 길이 상한(DHT 1200·DQT 600·SOF 100·DRI 10)·손상 시
+  경계 축소(SOF 후=다음 진짜 헤더 / SOF 전=next_sig) 추가. `parse_header` 길이 캡(크래시 수정). 상세는
+  [ADR 0007](adr/0007-carve-corrupt-header-boundary.md)·[carve 스펙](specs/0001-carve.md)·[C1 조사](investigations/2026-07-05-carve-overcarve-fix.md)·[C1 보고서](reports/2026-07-05-carve-overcarve-fix.md).
+- **결과** (usb.img 재카빙 822→999 + `recover.py --time-budget 0`): **사용가능(REC+HR+CLEAN) 740→884(+144)**,
+  ERROR 0. 진짜 손실 0(사라진 6=EXIF 썸네일은 부모 HEADER_RECOVERED로 보존, 다운그레이드 5=mis-framed
+  블록 복구를 C1이 분할한 정정). 회귀 테스트 4개, 전체 65 통과.
+- **기각:** SOS-aware 경계(순증감 +102<+106, buried 삼킴)·strict marker-landing(전수 손실 8)·모든 손상을
+  next_sig(EXIF 썸네일 붕괴)·de-bury(root fix가 커버). **회귀는 plain 디코더가 아니라 recover
+  파이프라인으로 판정**(부모 header-recovery 보존을 plain은 손실로 오판).
+- **잔여(무해):** base-swap 소수 손실(값싼 소형)·순수 위양성의 10MB 확대(디스크 낭비).
 
 ### C2. CLEAN strict 개봉 검증 + 재인코딩 — recover 정밀도
 

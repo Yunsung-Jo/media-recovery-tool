@@ -1,5 +1,6 @@
 *.img
 output/
+output_c1/
 *.pyc
 __pycache__/
 .venv/

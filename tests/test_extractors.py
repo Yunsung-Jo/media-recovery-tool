@@ -160,6 +160,54 @@ def test_stuffing_ratio_distinguishes_entropy_from_padding():
     assert _stuffing_ratio(b'\xff\xe0\xff\xe1' * 20) == 0.0   # FF 다음 APPn(헤더)
 
 
+# ── jpeg_end 과다 카빙 방지(손상 헤더 경계) 테스트 ───────────────
+
+# 최소 SOF0: precision 8, 16x16, 1 컴포넌트 — mb=0xC0이라 saw_sof를 세운다
+SOF0 = make_app_segment(0xC0, b'\x08\x00\x10\x00\x10\x01\x01\x11\x00')
+# 임베디드 진짜 이미지 헤더(FF D8 FF E0 + JFIF): _next_header가 찾는 다음 파일 경계
+EMBEDDED = b'\xff\xd8\xff\xe0' + struct.pack('>H', 16) + b'JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00' + b'\xff\xd9'
+
+
+def test_jpeg_end_corrupt_dht_length_bounds_at_next_header():
+    """SOF 뒤 DHT 길이가 sane 상한(1200)을 넘으면(손상) 다음 진짜 헤더로 경계를 축소해
+    그 안의 임베디드 이미지를 삼키지 않는다(과다 카빙 방지)."""
+    dht_payload = b'\x00' * 80 + EMBEDDED + b'\x00' * 1100  # ≥1201, 임베디드 헤더 포함
+    corrupt_dht = b'\xff\xc4' + struct.pack('>H', len(dht_payload) + 2) + dht_payload
+    data = b'\xff\xd8' + APP0 + SOF0 + corrupt_dht + b'\x00' * 8
+    emb_off = data.index(EMBEDDED)
+    end, complete = jpeg_end(data, 0, next_sig_offset=len(data))
+    assert end == emb_off          # 손상 DHT를 따라 점프하지 않고 임베디드 헤더에서 경계
+    assert complete is False
+
+
+def test_jpeg_end_bad_marker_before_sof_uses_next_sig():
+    """SOF 도달 전(=유효 이미지 아님, 위양성) 0xC0 미만 바이트를 만나면 다음 시그니처로
+    타이트하게 잡는다(garbage가 10MB로 커지는 것 방지 — SOF-게이트)."""
+    data = b'\xff\xd8' + APP0 + b'\xff\x41\x00\x10' + b'\x00' * 200  # FF41: 0x41<0xC0, SOF 전
+    end, complete = jpeg_end(data, 0, next_sig_offset=30)
+    assert end == 30               # SOF 미도달 → next_sig
+    assert complete is False
+
+
+def test_jpeg_end_entropy_ff00_in_header_bounds_at_next_header():
+    """SOF 뒤 헤더 영역에 FF00(엔트로피 스터핑)이 나오면 다음 진짜 헤더로 경계를 축소한다."""
+    data = b'\xff\xd8' + APP0 + SOF0 + b'\xff\x00' + b'\x00' * 40 + EMBEDDED + b'\x00' * 8
+    emb_off = data.index(EMBEDDED)
+    end, complete = jpeg_end(data, 0, next_sig_offset=len(data))
+    assert end == emb_off
+    assert complete is False
+
+
+def test_parse_header_truncated_dht_no_crash():
+    """DHT 세그먼트 길이가 실제 데이터보다 길어도(절단) 인덱스 초과로 죽지 않는다
+    (축소된 carve 조각이 노출한 크래시 회귀)."""
+    from carver import jpegdecode as jd
+    truncated_dht = b'\xff\xc4' + struct.pack('>H', 300) + b'\x00\x01\x01' + b'\x05' * 6
+    data = b'\xff\xd8' + APP0 + truncated_dht  # EOI 없이 절단
+    h = jd.parse_header(data)  # 크래시 없이 반환
+    assert h is not None
+
+
 # ── avi_end 테스트 ───────────────────────────────────────────
 
 def make_avi(chunk_size: int | None = None, extra: bytes = b'') -> bytes:
