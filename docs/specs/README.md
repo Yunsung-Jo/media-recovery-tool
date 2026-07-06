@@ -1,6 +1,7 @@
 # 스펙 문서 목록
 
-모듈을 수정하거나 삭제할 때는 각 스펙 문서의 **사용하는 모듈** 섹션을 확인해서 영향받는 프로그램을 파악한다.
+모듈을 수정·삭제할 때는 각 스펙의 **사용하는 모듈** 섹션으로 영향받는 프로그램을 파악한다.
+작성은 [write-spec](../../.claude/skills/write-spec/SKILL.md), 문서 경계는 [문서 역할 경계](../../.claude/skills/shared/doc-roles.md).
 
 ## Accepted
 

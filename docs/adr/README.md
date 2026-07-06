@@ -1,5 +1,9 @@
 # ADR 목록
 
+비자명한 기술 결정 기록. 작성·상태 전이(Accepted↔Superseded)는
+[write-adr](../../.claude/skills/write-adr/SKILL.md), 문서 경계는
+[문서 역할 경계](../../.claude/skills/shared/doc-roles.md).
+
 ## Accepted
 
 | 번호 | 제목 | 결정 요약 | 날짜 |
