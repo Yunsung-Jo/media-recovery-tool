@@ -157,7 +157,7 @@ def _resync_skip(dec, buf, m_d, mb, dcr, rate, near=300000, full=True, maxW=900)
     채택한다. 캐리만으로는 재동기 불가한 hole에서, DC=0 리셋이 재개 지점을 살려 복구율을 크게
     높인다(Cb/Cr DC도 재동기에 기여하므로 Y만이 아닌 전체를 리셋한다). DC=0은 Cb/Cr 절대
     오프셋을 잃어 무채색 캐스트를 만들지만 — 진짜 복구율(디코드된 영역)에는 영향이 없고 색
-    보정은 별도 과제다(backlog). 제자리 리셋(|db|<24)은 masking이므로 후보에서 제외한다.
+    보정은 별도 과제다. 제자리 리셋(|db|<24)은 masking이므로 후보에서 제외한다.
 
     near비트 내를 byte 정렬(8비트 간격)로 먼저 훑고, full=True면 못 찾을 때
     남은 스트림 전체를 거칠게(64비트 간격) 훑어 더 먼 구멍도 건너뛴다(철저 모드).
@@ -219,7 +219,7 @@ def recover(dec, maxW=900, max_ops=300, time_budget=90.0,
     철저함↔속도 조절:
     - resync_full=True + 큰 resync_near: 먼 구멍까지 건너뛰어 복구율↑(느림, 기본=철저).
     - resync_full=False + 작은 resync_near: 가까운 손상만(빠름).
-    - time_budget(초): 파일당 시간 상한. None/0이면 무제한. 심손상 파일의 비용 폭발 방지용
+    - time_budget(초): 이 복구 호출의 시간 상한. None/0이면 무제한. 심손상 파일의 비용 폭발 방지용
       안전장치(초과 시 남은 영역은 회색)."""
     total = dec.mcus_x * dec.mcus_y
     buf = dec.buf.copy()
@@ -293,7 +293,7 @@ def recover_file(src_path: Path, out_dir: Path, quality: int = 95,
     FAILED = 편집·재동기가 한 번도 수락되지 않고 hole로 종료(무행동) — 재인코딩
     회색본 대신 원본 바이트를 보존한다(입력보다 나쁜 복구본 저장 방지).
     헤더(DHT/DQT/SOF/SOS) 손상 파일은 `carver.headerfix`가 헤더를 재구성해 복구를
-    시도한다(백로그 W3) — 채택 시 `HEADER_RECOVERED`(원본 바이트가 디코드 불가하므로 렌더가
+    시도한다 — 채택 시 `HEADER_RECOVERED`(원본 바이트가 디코드 불가하므로 렌더가
     유일 산출)로 `header_recovered/`에 저장하고 `header_fix`에 교체 세그먼트를 기록한다.
     어느 변형도 게이트를 통과 못하면 SKIP. 모든 경우 out_path는 실제 경로다(None 반환 없음).
     time_budget/resync_near/resync_full로 철저함↔속도 조절(→ recover 참조).

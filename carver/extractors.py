@@ -58,8 +58,7 @@ def _next_avi(data: _Data, start: int, hi: int) -> int:
     """start~hi 사이 첫 AVI(RIFF … AVI ) 시그니처 오프셋. 없으면 hi.
     JPEG 경계 계산의 하드 정지점 — RIFF+AVI 12바이트 구조는 JPEG 헤더·엔트로피에
     정상적으로 나타나지 않으므로(스캐너 판별과 동일 기준) 뒤따르는 AVI를 실제 다음
-    파일 경계로 본다. hi로 탐색을 제한해 전 이미지 스캔을 피한다(조사 2026-07-05
-    AVI 손실: JPEG이 AVI 위로 확장해 삼키던 과다 카빙 방지)."""
+    파일 경계로 본다. hi로 탐색을 제한해 전 이미지 스캔을 피한다."""
     n = len(data)
     p = start
     while True:
@@ -72,7 +71,7 @@ def _next_avi(data: _Data, start: int, hi: int) -> int:
 
 
 # 헤더 세그먼트 길이 sane 상한 — 초과 시 손상된 길이 필드로 본다. 마커 워크가 손상된 길이를
-# 신뢰해 임베디드 이미지 위로 점프하는 과다 카빙 방지(조사 2026-07-05). DHT/DQT/DRI.
+# 신뢰해 임베디드 이미지 위로 점프하는 과다 카빙 방지. DHT/DQT/DRI.
 _SEG_SANE_MAX = {0xC4: 1200, 0xDB: 600, 0xDD: 10}
 
 
@@ -114,8 +113,7 @@ def jpeg_end(
     헤더 마커 워크는 세그먼트 길이를 신뢰해 전진하므로, 손상된 길이 필드나
     엔트로피성 바이트(FF00 등, 0xC0 미만)를 만나면 뒤따르는 임베디드 이미지 위로
     점프해 과다 카빙된다. 이를 막기 위해 유효마커(mb≥0xC0)·마커별 길이 상한
-    (_seg_sane_max)을 검증하고, 위반 시 _corrupt_boundary로 경계를 축소한다
-    (조사 2026-07-05).
+    (_seg_sane_max)을 검증하고, 위반 시 _corrupt_boundary로 경계를 축소한다.
 
     Returns:
         (end_offset, is_complete)

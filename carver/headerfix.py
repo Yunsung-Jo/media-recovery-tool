@@ -1,4 +1,4 @@
-"""손상 JPEG 헤더 복구 pass — DHT 이식·DQT 교정·SOF/SOS 재구성 (백로그 W3).
+"""손상 JPEG 헤더 복구 pass — DHT 이식·DQT 교정·SOF/SOS 재구성.
 
 `Decoder` 구성이 실패하거나 개구부 probe가 바닥에 못 미치는 파일에 대해,
 관용 스캔(마커·길이 오염 허용)으로 헤더 후보를 모으고 템플릿·도너 테이블로 교정한
@@ -6,8 +6,8 @@
 어느 변형도 통과하지 못하면 None — 가짜 채움 금지(SKIP 유지).
 
 판별의 핵심은 렌더 통계가 아니라 구조 신호다(경계+rate probe, 스터핑 규칙이 보장하는
-FFD9 앵커 기반 소비율, own-엄격-우월). 근거·기각 실험은
-docs/investigations/2026-07-04-w3-header-recovery.md 참조.
+FFD9 앵커 기반 소비율, own-엄격-우월). 근거와 기각한 대안은
+docs/adr/0006-header-recovery-structural-gates.md 참조.
 """
 from __future__ import annotations
 

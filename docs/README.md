@@ -1,18 +1,14 @@
-# 문서 맵
+# 문서 안내
 
-| 종류 | 경로 | 용도 | 템플릿 | 목록 | 작성 스킬 |
-|------|------|------|--------|------|-----------|
-| 프로젝트 개요 | `../README.md` | 사용법, 옵션, 실행 예시 | — | — | — |
-| 아키텍처 | `architecture.md` | 폴더 구조, 모듈 책임 | — | — | — |
-| 스펙 | `specs/` | 프로그램 단위 동작 방식 | `specs/0000-template.md` | `specs/README.md` | `write-spec` |
-| ADR | `adr/` | 비자명한 기술 결정 기록 | `adr/0000-template.md` | `adr/README.md` | `write-adr` |
-| 레퍼런스 | `reference/` | 외부 포맷·스펙 지식, 작업 중 확립한 포맷 사실 | `reference/0000-template.md` | `reference/README.md` | `write-reference` |
-| 보고서 | `reports/` | 결과·비교·평가의 결론 지향 보고 | `reports/0000-template.md` | `reports/README.md` | `write-report` |
-| 조사 기록 | `investigations/` | 분석·디버깅 과정의 시점 기록(랩 노트) | `investigations/0000-template.md` | `investigations/README.md` | `write-investigation` |
-| 백로그 | `backlog.md` | off-target 발견(나중에 손댈 문제·버그) 모음 | — | — | — |
+새 세션은 프로젝트 루트의 [`AGENTS.md`](../AGENTS.md)를 확인한 뒤 아래 순서로 필요한 문서만 읽는다.
 
-> 문서 유형별 **역할 경계·살아있음·생성/갱신 규칙**의 정본은 `.claude/skills/shared/doc-roles.md`,
-> 산문·제목 문체는 `.claude/skills/shared/doc-style.md`.
-> 템플릿은 **구조**(절 구성)를, 작성 스킬은 **작성 품질**(목표·독자·문체·제목·자가점검)을 다룬다.
-> 스펙·ADR·레퍼런스·보고서·조사 기록을 작성·갱신할 때는 해당 작성 스킬을 호출한다.
-> 작성·수정 후에는 `review-doc` 스킬로 검토한다 — 수치 재계산·코드 참조·링크·단정/추론·검증 실행을 능동 확인한다(모든 유형 공통).
+| 순서 | 문서 | 답하는 질문 | 성격 |
+|---|---|---|---|
+| 1 | [`current-state.md`](current-state.md) | 지금 무엇이 동작하고, 무엇이 남아 있는가? | 현재 기준선 |
+| 2 | [`architecture.md`](architecture.md) | 코드는 어떻게 나뉘고 데이터는 어떻게 흐르는가? | 현재 구조 |
+| 3 | [`0001-carve.md`](specs/0001-carve.md), [`0002-recover.md`](specs/0002-recover.md) | 명령과 결과가 어떤 동작을 보장하는가? | 현재 기능 명세 |
+| 4 | [`adr/README.md`](adr/README.md) | 중요한 선택을 왜 했는가? | 당시 맥락을 보존하는 결정 기록 |
+| 필요 시 | [`format-notes.md`](format-notes.md) | JPEG·AVI 처리에서 어떤 포맷 사실을 전제하는가? | 구현 참고 |
+
+전체 데이터 수치와 알려진 한계는 `current-state.md`, 현재 동작은 기능 명세, 선택의 이유는 ADR을 기준으로
+한다.

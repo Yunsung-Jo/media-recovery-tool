@@ -400,7 +400,7 @@ class Decoder:
             td, ta = scan_map[cid]
             if (0, td) not in H.huff or (1, ta) not in H.huff:
                 # DHT 소실/손상: 미검증 시 all-zero LUT로 진행돼 MCU 0에서 무효 코드
-                # → 전량 회색이 RECOVERED로 오분류된다 (2026-07-02 사각지대 조사)
+                # → 전량 회색이 RECOVERED로 오분류될 수 있다.
                 raise ValueError(f"허프만 테이블 누락 (DHT 소실/손상: comp {cid} DC{td} AC{ta})")
             self.dc_idx[ci] = td          # class 0 (DC)
             self.ac_idx[ci] = 2 + ta      # class 1 (AC) => index 2+ta

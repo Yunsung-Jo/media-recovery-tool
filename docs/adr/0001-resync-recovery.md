@@ -54,4 +54,4 @@ ddrescue로 복구한 디스크 이미지에서 카빙한 JPEG들은 엔트로�
 ## 관련 항목
 
 - 영향받은 스펙: [recover.py](../specs/0002-recover.md) — 복구 알고리즘 단계별 설명 포함
-- 포맷 지식: [JPEG 엔트로피 코딩과 디싱크 원리](../reference/jpeg-entropy-coding.md)(왜 손상이 회색/깨짐을 만드는가), [JPEG 마커 구조](../reference/jpeg-markers.md)
+- 포맷 지식: [포맷 메모](../format-notes.md) — JPEG 마커와 디싱크 원리

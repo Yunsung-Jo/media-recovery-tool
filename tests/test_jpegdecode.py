@@ -68,7 +68,7 @@ def test_rejects_missing_dht():
     """DHT 소실 파일은 거부한다.
 
     미검증 시 all-zero LUT로 진행돼 MCU 0에서 무효 코드 → 전량 회색이
-    RECOVERED로 오분류된다(2026-07-02 사각지대 조사: 코퍼스 66건)."""
+    RECOVERED로 오분류될 수 있다."""
     data = encode(smooth_image(), 1)
     out = bytearray(data[:2])                       # SOI
     i = 2

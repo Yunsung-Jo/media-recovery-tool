@@ -1,9 +1,6 @@
-# carve.py
+# carve.py 동작 계약
 
-- **날짜:** 2026-07-05
-- **상태:** Accepted
-
----
+이 문서는 현재 `carve.py`의 사용자 관점 동작을 설명한다.
 
 ## 개요
 
@@ -18,7 +15,7 @@ ddrescue 등으로 복구한 이미지처럼 디렉토리 구조가 유실된 �
 | `image` | 디스크 이미지 파일 경로 | positional | — |
 | `-o, --output` | 출력 디렉토리 | str | `./output` |
 | `--max-avi-size` | AVI 최대 크기 (MB) | int | `500` |
-| `--save-thumbnails` | AVI 내 임베디드 JPEG를 `jpeg_thumbnails/`에 저장 | flag | 생략 시 스킵 |
+| `--save-thumbnails` | 이미 추출한 범위 안의 임베디드 JPEG를 `jpeg_thumbnails/`에 저장 | flag | 생략 시 스킵 |
 
 ## 출력
 
@@ -50,14 +47,13 @@ ddrescue 등으로 복구한 이미지처럼 디렉토리 구조가 유실된 �
 
 ## 의존하는 포맷 / 스펙
 
-- [JPEG 마커 구조](../reference/jpeg-markers.md)
-- [AVI RIFF 청크 구조](../reference/avi-riff.md)
+- [포맷 메모](../format-notes.md)
 
 ## 엣지 케이스
 
 | 상황 | 동작 |
 |------|------|
-| AVI 내 JPEG 썸네일 (임베디드) | `--save-thumbnails` 있으면 `jpeg_thumbnails/`에 저장, 없으면 스킵. `jpeg/`에는 저장하지 않는다. |
+| 이미 추출한 JPEG·AVI 범위 안의 JPEG 히트 | `--save-thumbnails`가 있으면 `jpeg_thumbnails/`에 저장하고, 없으면 스킵한다. `jpeg/`에는 저장하지 않는다. |
 | JPEG 엔트로피 중 가짜 `FF D9` (손상으로 stuffing 깨짐) | EOI 직후 4 KB의 "`FF` 다음 `00`/RST" 비율이 0.3 이상이면 엔트로피 연속(가짜)으로 보고 다음 `FF D9` 후보로 전진한다. 첫 `FF D9`에서 잘려 누락됐던 데이터를 되살린다. 근거: [ADR 0002](../adr/0002-carve-eoi-validation.md). |
 | JPEG에 EOI 없음 (truncated) | 다음 JPEG 헤더 또는 10 MB 상한까지 추출. SOS를 못 찾으면 다음 시그니처 오프셋으로 fallback. 파일명 옆에 `[불완전, fallback 사용]` 표시. |
 | 헤더 세그먼트 길이 손상 / 비마커 바이트 (`FF 00` 등) | 마커 워크가 손상 길이·비마커(`mb < 0xC0`)를 만나면 손상으로 보고 경계를 축소한다: **SOF를 이미 지났으면**(=유효 이미지) 다음 진짜 헤더로, **SOF 도달 전이면**(=위양성 의심) 다음 시그니처로. 손상 첫 이미지 뒤에 연속된 진짜 이미지들이 별도 히트로 추출된다(과다 카빙 방지). 근거: [ADR 0007](../adr/0007-carve-corrupt-header-boundary.md). |

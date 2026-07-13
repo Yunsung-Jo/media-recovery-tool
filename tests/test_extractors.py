@@ -224,7 +224,7 @@ def test_next_avi_finds_signature_within_bound():
 
 def test_jpeg_end_sos_overshoot_stops_at_avi():
     """SOS 이후 진짜 EOI를 못 찾고 상한까지 가는 절단 JPEG이 뒤따르는 AVI(RIFF)를 삼키지
-    않고 AVI 시작점에서 끊는다(과다 카빙이 AVI 삼킴 방지, 조사 2026-07-05)."""
+    않고 AVI 시작점에서 끊는다(과다 카빙이 AVI를 삼키는 회귀 방지)."""
     sos = b'\xff\xda' + struct.pack('>H', 12) + b'\x01\x01\x00\x00\x3f\x00\x00\x00\x00\x00'
     entropy = b'\x12\x34' * 100  # FF 없음 → 진짜/가짜 EOI 후보 없음, 상한까지 진행
     avi = make_avi(chunk_size=2000)

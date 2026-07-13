@@ -44,7 +44,7 @@ def main() -> None:
     parser.add_argument('--fast', action='store_true',
                         help='빠른 모드(부분 복구 감수). 기본은 철저 모드(복구율↑, 느림)')
     parser.add_argument('--time-budget', type=float, default=None, metavar='SEC',
-                        help='파일당 시간 상한(초). 0=무제한. 기본: 철저 90, --fast 20')
+                        help='복구 탐색 1회당 시간 상한(초). 0=무제한. 기본: 철저 90, --fast 20')
     args = parser.parse_args()
 
     # 철저(기본)↔빠른(--fast) 프리셋
@@ -81,7 +81,7 @@ def main() -> None:
     ]
     counts: dict[str, int] = {}
     stat_rows: list[tuple[str, int, float, float]] = []  # (action, mcus, undec_before, undec_after)
-    hdr_fixes: list[str] = []  # 헤더 복구된 파일의 header_fix 태그 (W3)
+    hdr_fixes: list[str] = []  # 헤더 복구된 파일의 header_fix 태그
     jobs = args.jobs if args.jobs > 0 else (os.cpu_count() or 4)
     work = partial(_work, out_dir=out_dir, quality=args.quality,
                    time_budget=budget, near=near, full=full)
@@ -136,7 +136,7 @@ def main() -> None:
     for action, cnt in sorted(counts.items()):
         print(f'  {action}: {cnt}개')
 
-    # 헤더 복구 요약 (W3) — 교체 세그먼트 조합별 건수 + undec 평균
+    # 헤더 복구 요약 — 교체 세그먼트 조합별 건수 + undec 평균
     if hdr_fixes:
         from collections import Counter
         combos = ', '.join(f'{tag or "(무변경)"} {n}개'
@@ -145,7 +145,7 @@ def main() -> None:
         hua = f", undec_after 평균 {sum(r[3] for r in hr) / len(hr):.3f}" if hr else ''
         print(f'헤더 복구: {len(hdr_fixes)}개{hua} — {combos}')
 
-    # 층화 요약 — 악화·크기 대역이 평균에 가려지지 않게 한다 (백로그 W1)
+    # 층화 요약 — 악화·크기 대역이 평균에 가려지지 않게 한다
     rec = [r for r in stat_rows if r[0] == 'RECOVERED']
     if rec:
         ub = sum(r[2] for r in rec) / len(rec)

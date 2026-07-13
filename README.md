@@ -1,99 +1,127 @@
 # rawcarve
 
-ddrescue 등으로 복구한 손상된 디스크 이미지(`.img`)에서 **JPEG 이미지**와 **AVI 영상** 파일을 추출하고, 손상된 JPEG를 복구하는 파일 카빙 도구.
+파일 시스템 정보가 사라진 디스크 이미지에서 JPEG·AVI를 찾아 추출하고, 손상된 JPEG를 가능한 범위까지
+복구하는 Python 도구다. 원본 이미지는 읽기 전용으로 열며 결과는 별도 출력 디렉터리에 저장한다.
 
-`mmap` 기반 시그니처 탐색으로 대용량 이미지를 효율적으로 처리한다.
+## 요구 사항
 
-## 설치
+- Python 3.10 이상
+
+가상환경 사용을 권장한다.
 
 ```bash
-pip install -r requirements.txt
+python -m venv .venv
 ```
 
-Python 3.10 이상 권장.
-
-## 사용법
-
-### 1단계: 디스크 이미지에서 파일 추출
+```powershell
+# Windows
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
 
 ```bash
-python carve.py <이미지 파일> [옵션]
+# Linux / macOS
+.venv/bin/python -m pip install -r requirements.txt
+```
+
+이후 예시에서는 가상환경을 활성화했거나 `python`을 위 가상환경의 실행 파일로 바꿔 사용한다고 가정한다.
+
+## 1. 디스크 이미지 카빙
+
+```bash
+python carve.py <디스크 이미지> [옵션]
 ```
 
 | 옵션 | 설명 | 기본값 |
-|------|------|--------|
-| `-o, --output DIR` | 출력 디렉토리 | `./output` |
-| `--max-avi-size MB` | AVI 최대 크기 (MB) | `500` |
-| `--save-thumbnails` | 썸네일을 `jpeg_thumbnails/`에 저장 | 건너뜀 |
+|---|---|---|
+| `-o, --output DIR` | 출력 디렉터리 | `output` |
+| `--max-avi-size MB` | AVI fallback 최대 크기 | `500` |
+| `--save-thumbnails` | 추출 범위 안의 임베디드 JPEG도 저장 | 사용하지 않음 |
+
+예시:
 
 ```bash
-python carve.py usb.img -o output/
-python carve.py usb.img -o output/ --max-avi-size 200 --save-thumbnails
+python carve.py usb.img -o output
+python carve.py usb.img -o output --max-avi-size 200 --save-thumbnails
 ```
 
-### 2단계: 추출된 JPEG 복구 (선택)
+출력 구조:
 
-```bash
-python recover.py <입력 디렉토리> [옵션]
-```
-
-| 옵션 | 설명 | 기본값 |
-|------|------|--------|
-| `-o, --output DIR` | 출력 디렉토리 | `<input>_recovered` |
-| `-q, --quality N` | 복구본 JPEG 품질 | `95` |
-| `-j, --jobs N` | 병렬 프로세스 수 (`0`=CPU 수, `1`=순차) | `0` |
-| `--fast` | 빠른 모드(부분 복구 감수) | 꺼짐(철저) |
-| `--time-budget SEC` | 파일당 시간 상한(초, `0`=무제한) | 철저 90 / `--fast` 20 |
-
-```bash
-python recover.py output/jpeg/ -o output/jpeg_recovered/          # 철저(기본)
-python recover.py output/jpeg/ --fast                             # 빠르게
-python recover.py output/jpeg/ --time-budget 0                    # 무제한(밤새 실행)
-```
-
-**철저↔속도**: 기본은 **철저 모드**(먼 구멍까지 재동기 탐색 → 복구율↑, 느림). 빠르게 보려면
-`--fast`, 더 끝까지 짜내려면 `--time-budget 0`. 손상이 심해 복구 불가한 영역은 어느 모드든
-가짜로 채우지 않고 회색으로 남긴다.
-
-## 출력 구조
-
-```
+```text
 output/
-├── jpeg/               # 추출된 JPEG 파일 (0x{오프셋}.jpg)
-├── jpeg_thumbnails/    # 내장 썸네일 (--save-thumbnails 사용 시)
-├── avi/                # 추출된 AVI 파일 (0x{오프셋}.avi)
-├── errors.log          # 추출 실패 오프셋 및 오류 내역
-└── jpeg_recovered/     # recover.py 출력
-    ├── report.csv          # 전체 복구 결과 (6종 분류 모두 기록, header_fix 컬럼 포함)
-    ├── recovered/          # 엔진 재동기 복구본 (재인코딩 JPEG)
-    ├── header_recovered/   # 헤더 재구성 복구본 (재인코딩 JPEG, header_fix에 교체 세그먼트)
-    ├── clean/              # 손상 없던 원본 복사
-    ├── failed/             # 복구 무행동 원본 복사 (회색 재인코딩본 대신 원본 보존)
-    ├── skip_undecodable/   # 디코드 실패 원본 복사 (헤더 복구 후보도 못 찾은 파일)
-    └── error/              # 워커 예외 원본 복사
+├── jpeg/               # 추출한 JPEG
+├── avi/                # 추출한 AVI
+├── jpeg_thumbnails/    # --save-thumbnails 사용 시에만 생성
+└── errors.log          # 항목별 추출 오류
 ```
 
-파일명의 16진수 오프셋은 디스크 이미지 내 원본 위치를 나타낸다.
+파일명은 디스크 이미지 안의 시작 오프셋을 나타낸다. 예: `0x01A2B000.jpg`.
 
-## 복구 전략 (resync 엔진)
+## 2. JPEG 복구
 
-손상된 엔트로피 스트림은 바이트 손상으로 **비트 정렬이 어긋나(디싱크)** 표준 디코더가
-회색(스캔 중단) 또는 깨진(어긋난 채 진행) 출력을 낸다. resync 엔진은 비트 단위 디코더로
-디싱크 지점을 정확히 짚고 정렬을 복원한다.
-
-| 단계 | 동작 |
-|------|------|
-| 바이트 오라클 | 손상 지점 부근 바이트를 치환/삭제/삽입해 정렬 복원 (단일바이트 손상) |
-| resync-skip | 다중바이트 손상/구멍은 재개 비트위치를 탐색해 건너뜀. DC 캐리/0 리셋을 함께 시도해 재동기 실패(hole)를 복구 |
-| 헤더 복구 | 헤더(DHT/DQT/SOF/SOS) 손상으로 디코드가 불가한 파일은 도너 테이블 이식·양자화표 교정·SOF/SOS 재구성으로 헤더를 복원해 엔진에 태움. 확신 있는 후보가 없으면 채우지 않음 |
-| 회색 유지 | 물리적으로 소실됐거나 데이터를 소진한 영역은 가짜로 채우지 않고 회색으로 남김 |
-
-색 캐스트(DC=0 리셋의 무채색 포함)·이미지 밀림은 복구 대상이 아니다(구조 복원에 집중).
-자세한 근거는 [ADR 0001](docs/adr/0001-resync-recovery.md)·[ADR 0004](docs/adr/0004-resync-dc-reset-recovery.md)·[ADR 0006](docs/adr/0006-header-recovery-structural-gates.md), [recover 스펙](docs/specs/0002-recover.md) 참조.
-
-## 테스트
+카빙한 JPEG를 추가로 복구하려면 `jpeg/` 디렉터리를 입력한다.
 
 ```bash
-pip install -r requirements-dev.txt
-python -m pytest tests/ -v
+python recover.py <JPEG 디렉터리> [옵션]
 ```
+
+| 옵션 | 설명 | 기본값 |
+|---|---|---|
+| `-o, --output DIR` | 출력 디렉터리 | 입력 옆의 `<이름>_recovered` |
+| `-q, --quality N` | 재인코딩 복구본의 JPEG 품질 | `95` |
+| `-j, --jobs N` | 병렬 프로세스 수 (`0`=CPU 수, `1`=순차) | `0` |
+| `--fast` | 가까운 손상만 탐색하는 빠른 모드 | 철저 모드 |
+| `--time-budget SEC` | 복구 탐색 1회당 시간 상한 (`0`=무제한) | 철저 90초 / fast 20초 |
+
+예시:
+
+```bash
+python recover.py output/jpeg
+python recover.py output/jpeg --fast
+python recover.py output/jpeg -o output/jpeg_recovered --time-budget 0
+```
+
+입력 디렉터리 최상위의 소문자 확장자 `*.jpg`만 처리한다. `--fast`는 처리 시간을 줄이는 대신 먼
+재동기 지점을 놓칠 수 있다. 비교 실험이나 전체 기준선 재계산에는 시간에 따른 결과 차이를 없애기 위해
+`--time-budget 0`을 사용한다.
+
+시간 상한은 파일 전체가 아니라 개별 복구 탐색에 적용된다. 헤더가 손상된 파일은 여러 후보를 평가하므로
+한 파일의 실제 처리 시간이 상한보다 길 수 있다.
+
+## 복구 결과
+
+복구 출력 루트에는 `report.csv`와 다음 디렉터리가 생성된다.
+
+| 분류 | 저장 위치 | 의미 |
+|---|---|---|
+| `RECOVERED` | `recovered/` | 바이트 편집 또는 재동기를 적용한 복구본 |
+| `HEADER_RECOVERED` | `header_recovered/` | 손상된 헤더를 재구성한 복구본 |
+| `CLEAN` | `clean/` | 추가 복구가 필요 없었던 원본 |
+| `FAILED` | `failed/` | 복구 연산을 적용하지 못해 원본을 보존한 파일 |
+| `SKIP_UNDECODABLE` | `skip_undecodable/` | 디코더 구성과 헤더 복구가 모두 실패한 원본 |
+| `ERROR` | `error/` | 처리 중 예외가 발생한 원본 |
+
+`RECOVERED`와 `HEADER_RECOVERED`는 JPEG로 재인코딩된다. `CLEAN`, `FAILED`, `SKIP_UNDECODABLE`은
+입력 바이트를 그대로 보존한다. 물리적으로 없거나 진위를 확인할 수 없는 영역은 임의로 생성하지 않고
+회색으로 남긴다.
+
+## 지원 범위와 한계
+
+- 카빙은 JPEG와 AVI 시그니처를 지원한다.
+- JPEG 복구 엔진은 3컴포넌트 baseline JPEG를 대상으로 한다.
+- AVI는 추출만 하며 영상 스트림이나 인덱스를 수리하지 않는다.
+- JPEG 재동기 결과에는 수평 밀림이나 색 캐스트가 남을 수 있다.
+
+현재 전체 데이터 기준선과 후속 작업은 [현재 상태](docs/current-state.md)를 확인한다.
+
+## 개발
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest
+```
+
+- [문서 안내](docs/README.md)
+- [아키텍처](docs/architecture.md)
+- [carve 동작 계약](docs/specs/0001-carve.md)
+- [recover 동작 계약](docs/specs/0002-recover.md)
+- [아키텍처 결정 기록](docs/adr/README.md)

@@ -50,14 +50,12 @@ ddrescue로 카빙한 JPEG 다수가 resync 복구(ADR 0001) 후에도 회색이
 - `jpeg_end`가 다음 헤더 탐색(`find` 1회) + EOI 직후 4 KB 스캔으로 약간 무거워진다. 정상 파일은 첫 EOI에서 거의 끝나 영향이 작다.
 - 임계 휴리스틱은 가짜/진짜를 확률적으로 가른다. 오판은 recover가 방어하나 잉여 raw가 생길 수 있다.
 
-**향후 고려사항**
-- carve가 되살린 데이터를 recover가 못 넘는 경우(resync 한계, 예: `0xA1F57000`·`0xA24B2000`)는 별도 과제다 — resync 수락 임계 완화·깊은 탐색(레버②).
-- 색 캐스트·밝기 밴드·밀림은 여전히 별도(ADR 0001 미해결 항목).
+후속 [ADR 0005](0005-scaled-accept-threshold.md)는 작은 이미지와 짧은 손상 간격의 resync 수락
+한계를 완화했다. 남은 복구 한계는 [현재 상태](../current-state.md)를 따른다.
 
 ## 관련 항목
 
 - 영향받은 스펙: [carve.py](../specs/0001-carve.md) — 끝 오프셋 계산 단계와 엣지 케이스
 - [ADR 0001](0001-resync-recovery.md) — "회색 = 물리적 소실" 원칙을 이 결정이 부분 정정(회색의 상당수는 추출 누락이었다)
-- 포맷 지식: [JPEG 마커 구조 §3](../reference/jpeg-markers.md) — 스캔 데이터의 `FF` 처리와 가짜 EOI, EXIF 썸네일
-- 분석 과정(막다른 길 포함): [investigation 2026-06-29 회색 주원인](../investigations/2026-06-29-carve-eoi-discovery.md)
-- 재추출 실증: [보고서 2026-06-29 carve 가짜 EOI 수정](../reports/2026-06-29-carve-eoi-recovery.md) — 822개 재추출, 의심 92개 중 26개 복구·악화 0
+- 포맷 지식: [포맷 메모](../format-notes.md) — 스캔 데이터의 `FF` 처리와 가짜 EOI, EXIF 썸네일
+- 재추출 실증: 822개 재추출, 의심 92개 중 26개 복구·악화 0

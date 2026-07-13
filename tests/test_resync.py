@@ -157,7 +157,7 @@ def test_recover_file_failed_preserves_original(tmp_path):
     assert info['mcus'] == 32
 
 
-# ── 수락 임계 잔여 비례화 (W2) ──────────────────────────────
+# ── 수락 임계 잔여 비례화 ───────────────────────────────────
 
 def fe_hole(data: bytes, frac: float, n_bytes: int) -> bytes:
     """엔트로피의 frac 지점에 0xFE 채움 hole을 만든다. 0xFE는 Annex-K DC cat-10
@@ -209,7 +209,7 @@ def test_recover_truncated_tail_resync_via_buffer_end():
     assert rgb.shape == (256, 384, 3)
 
 
-# ── 헤더 복구 (W3) ──────────────────────────────────────────
+# ── 헤더 복구 ───────────────────────────────────────────────
 
 def strip_dht(data: bytes) -> bytes:
     """SOS 이전의 DHT 마커(FFC4)를 FF00으로 무력화해 huff를 비운다(DHT 소실 모사).

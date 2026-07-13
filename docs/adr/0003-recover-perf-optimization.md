@@ -11,7 +11,7 @@
 
 요구는 **"복구 품질(출력)은 절대 바꾸지 않고 속도만 개선"**이었다. GPU 가속 가능성도 질의에 포함됐다.
 
-단일 프로세스 cProfile(무거운 파일 `0xA147B000`, 무제한)로 병목을 측정했다(상세 과정은 [조사 기록](../investigations/2026-06-29-recover-perf-profiling.md)):
+단일 프로세스 cProfile(무거운 파일 `0xA147B000`, 무제한)로 병목을 측정했다:
 
 - `np.insert` **131.7초 / 68%**(221,961회) — `_best_edit`의 삽입 후보 탐색이 바이트 값(0~255)마다 `np.insert(buf, p, v)`로 3 MB `buf`를 통째 복사. 한 파일에서 누적 약 660 GB. 복구 연산과 무관한 낭비다.
 - `_probe`(decode_probe 네이티브) 37.7초 / 20% — 실제 비트스트림 디코딩.
@@ -52,8 +52,6 @@
 
 ## 관련 항목
 
-- 조사 과정: [recover 성능 병목 프로파일링](../investigations/2026-06-29-recover-perf-profiling.md)
-- 성과 보고: [recover 속도 개선 보고서](../reports/2026-06-29-recover-speedup.md)
 - 영향받은 스펙: [recover.py](../specs/0002-recover.md)
-- 포맷 지식: [JPEG 엔트로피 코딩과 디싱크 원리](../reference/jpeg-entropy-coding.md)(`_recv_extend` magnitude 부호확장 맥락)
+- 포맷 지식: [포맷 메모](../format-notes.md)(`_recv_extend` magnitude 부호확장 맥락)
 - 커밋: `63ad396`
