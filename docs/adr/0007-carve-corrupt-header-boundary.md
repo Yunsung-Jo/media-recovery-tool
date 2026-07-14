@@ -15,7 +15,7 @@ SOS 전에 나타난 `FF 00` 같은 비마커 바이트였다.
 헤더 마커 워크에 다음 검증을 적용하고, 위반하면 `_corrupt_boundary`로 경계를 축소한다.
 
 1. 별도 처리되는 TEM·RST를 제외하고 마커 바이트가 `0xC0` 미만이면 손상으로 본다.
-2. DHT 1200, DQT 600, SOF 100, DRI 10바이트를 세그먼트 길이 상한으로 둔다. APPn과 COM은 큰
+2. 당시 DHT 1200, DQT 600, SOF 100, DRI 10바이트를 세그먼트 길이 상한으로 뒀다. APPn과 COM은 큰
    메타데이터가 합법이므로 별도 상한을 두지 않는다.
 3. SOF를 이미 통과했다면 다음 `FF D8 FF E0`~`EF` 헤더로, SOF 전이라면 다음 전체 시그니처로
    경계를 줄인다. 어느 경우든 10 MB fallback 상한과 다음 AVI 경계를 넘지 않는다.
@@ -46,9 +46,19 @@ carve는 경계만 분리하고 손상된 첫 JPEG의 헤더를 고치지 않는
 뒤 파일을 삼키는 것보다 안전하며, 후속 recover에서 대부분 `SKIP_UNDECODABLE`로 분류된다. carve 경계
 변경의 회귀는 단순 디코드 개수가 아니라 헤더 복구를 포함한 전체 recover 결과로 판단한다.
 
+### 후속 보완 (2026-07-13)
+
+- 실제 코퍼스의 합법 DHT를 보존하기 위해 sane 상한을 1200에서 2200바이트로 완화했다.
+- DQT/DHT/SOF/SOS의 내부 의미도 검증한다. 특히 DQT 양자화 계수 0은 무효이므로 그 선언 길이가 뒤
+  구조 검증 JPEG를 덮으면 경계를 축소하고 앞 조각과 뒤 후보를 모두 보존한다.
+- APP 없는 table-first 시작과 post-scan marker 연쇄에도 같은 의미 검증을 적용한다.
+- 유효한 pre-SOS APP/COM/테이블 payload 안 시그니처는 부모 metadata로 유지하고, Exif APP1 JPEG만
+  썸네일로 분류한다. 손상 시작 추론은 [ADR 0009](0009-structural-damaged-starts.md)에 분리했다.
+
 ## 관련 항목
 
 - [ADR 0002](0002-carve-eoi-validation.md) — 엔트로피의 가짜 EOI 처리
 - [ADR 0006](0006-header-recovery-structural-gates.md) — 손상된 첫 JPEG의 헤더 복구
 - [ADR 0008](0008-jpeg-boundary-stops-at-avi.md) — 다음 AVI 경계
+- [ADR 0009](0009-structural-damaged-starts.md) — 구조 기반 손상 시작 후보
 - [carve 명세](../specs/0001-carve.md)

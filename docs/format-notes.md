@@ -8,15 +8,22 @@
 ## JPEG 마커와 경계
 
 - JPEG 시작은 `FF D8`, 종료는 `FF D9`다. 카빙 시 오탐을 줄이기 위해 시작 시그니처는 `FF D8 FF`를
-  사용한다.
+  사용한다. APPn은 필수가 아니며 첫 길이형 marker는 DQT·DHT·SOF·SOS 등일 수 있다. marker prefix의
+  연속 `FF` fill도 합법이다.
 - SOI(`D8`), EOI(`D9`), RST0~RST7(`D0`~`D7`), TEM(`01`)에는 길이 필드가 없다. 다른 일반 세그먼트의
   16비트 big-endian 길이는 길이 필드 자체 2바이트를 포함한다.
+- DQT의 8비트·16비트 양자화 계수는 0일 수 없다. 선언 길이가 맞더라도 0 계수를 포함한 DQT가 뒤의
+  `FF D8`을 payload로 덮으면 그 길이를 경계 근거로 신뢰하지 않는다.
 - SOS 이후 엔트로피에서 `FF 00`은 데이터 바이트 `FF`, `FF D0`~`FF D7`은 restart marker,
   `FF FF`는 fill이다. 이들을 일반 마커나 파일 경계로 취급하지 않는다.
 - 손상으로 엔트로피 안에 가짜 `FF D9`가 생길 수 있다. `carver/extractors.py`는 EOI 직후에도 엔트로피가
-  이어지는지 확인해 조기 종료를 피한다([ADR 0002](adr/0002-carve-eoi-validation.md)).
-- EXIF APP1에는 독립된 썸네일 JPEG가 들어갈 수 있다. 따라서 메인 SOS 이전의 `FF D8 FF`를 다음 파일
-  경계로 사용하면 안 된다.
+  이어지는지 확인해 조기 종료를 피한다. stuffing 비율은 FF 표본이 충분할 때만 강한 반증이며, 희소한
+  `FF 00`이 섞인 zero padding을 엔트로피로 단정하면 실제 EOI를 놓친다
+  ([ADR 0002](adr/0002-carve-eoi-validation.md)).
+- Progressive뿐 아니라 sequential JPEG도 컴포넌트를 여러 scan으로 나눌 수 있다. scan 사이에는 새 SOS
+  외에 DHT·DQT·DAC·DNL·DRI·APPn·COM이 올 수 있고, 그 길이형 payload의 `FF D8`/`FF D9`는 경계가 아니다.
+- EXIF APP1에는 독립된 미리보기 JPEG가 들어갈 수 있다. 다른 APP/COM·테이블 payload에도 우연한 파일
+  시그니처가 있을 수 있으므로, 유효한 pre-SOS 세그먼트 안 hit은 외부 파일로 분리하지 않는다.
 - 손상 세그먼트 길이는 뒤 파일이나 AVI 위로 점프할 수 있다. 마커 유효성·세그먼트별 길이 상한과 다음
   JPEG/AVI 시그니처를 함께 경계로 사용한다([ADR 0007](adr/0007-carve-corrupt-header-boundary.md),
   [ADR 0008](adr/0008-jpeg-boundary-stops-at-avi.md)).
@@ -45,11 +52,21 @@
 ## AVI RIFF 경계
 
 - AVI는 `RIFF` 4바이트, little-endian `fileSizeMinus8` 4바이트, `AVI ` 4바이트로 시작한다.
-- 전체 파일 크기는 `8 + fileSizeMinus8`이다. 값이 0이거나 상한을 넘으면 다음 시그니처 또는 설정된 최대
-  크기로 제한한다.
-- `RIFF`만으로 AVI로 판정하지 않고 12바이트의 `RIFF....AVI ` 구조를 확인한다.
-- 이 프로젝트는 12바이트 `RIFF....AVI ` 구조를 JPEG 내부의 정상 데이터가 아닌 컨테이너 경계로
-  취급한다. 따라서 JPEG 경계 계산이 다음 AVI를 넘지 않게 한다
+- 전체 파일 크기는 `8 + fileSizeMinus8`이다. 값이 16 미만·상한 초과·이미지 밖이거나 선언 범위의
+  top-level 구조 walk가 실패하거나 뒤 외부 후보를 가로지르면 size를 버리고 chunk walk와 다음 경계로
+  제한한다. RIFF chunk payload는 WORD 정렬되며 홀수 `ckSize` 뒤 padding 1바이트는 `ckSize`에 포함되지
+  않지만 부모 RIFF 범위에는 포함된다.
+- 정확 시작 스캔은 `RIFF`와 `AVI ` form type 12바이트를 후보로 잡는다. 선언 size를 실제 끝으로 신뢰하거나
+  RIFF/form 한쪽의 1~2바이트 손상에서 시작을 추론할 때는 `LIST/hdrl` 안 `avih`와 뒤 `LIST/movi` 구조를
+  추가로 요구한다.
+- JPEG entropy 밖의 구조 검증 AVI 시작은 JPEG의 외부 경계다. 다만 pre-SOS/interscan 길이형 segment
+  payload 안의 `RIFF...AVI `는 metadata일 수 있으므로 segment를 먼저 파싱해 내부 후보를 건너뛴다
   ([ADR 0008](adr/0008-jpeg-boundary-stops-at-avi.md)).
+- [OpenDML AVI File Format Extensions 1.02](https://web.archive.org/web/20191226055430/http://www.morgan-multimedia.com/download/odmlff2.pdf)는
+  첫 `RIFF...AVI ` 뒤에 하나 이상의 `RIFF...AVIX`를 둘 수 있다. AVIX는 `LIST/movi`와 완전한 chunk walk를
+  확인한 경우만 같은 출력에 붙이고 `ix##` standard-index를 허용한다. Microsoft의 AVI RIFF 문서는
+  OpenDML 확장 자체를 설명하지 않으므로 두 근거를 구분한다.
+- `movi` 또는 `rec ` 안의 `NNdc`/`NNdb` payload에는 MJPEG JPEG가 정상적으로 들어간다. 이 SOI는 AVI
+  경계도 별도 사진도 아니다.
 - `idx1` 부재는 카빙 경계 오류와 별개다. 영상 데이터가 온전해도 일부 플레이어가 재생시간을 잘못 표시할
   수 있으며, 필요하면 `movi` 청크를 스캔해 인덱스를 재구성한다.

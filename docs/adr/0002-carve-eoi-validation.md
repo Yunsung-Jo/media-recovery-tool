@@ -53,9 +53,16 @@ ddrescue로 카빙한 JPEG 다수가 resync 복구(ADR 0001) 후에도 회색이
 후속 [ADR 0005](0005-scaled-accept-threshold.md)는 작은 이미지와 짧은 손상 간격의 resync 수락
 한계를 완화했다. 남은 복구 한계는 [현재 상태](../current-state.md)를 따른다.
 
+### 후속 보완 (2026-07-13)
+
+EOI 판정은 즉시 64바이트 zero padding, FF 표본 수, 4 KiB 안의 구조 검증 외부 경계를 함께 본다.
+충분한 stuffed FF가 이어지면 가까운 외부 경계도 가짜 EOI 반증을 덮지 않는다. entropy walk는
+APP/COM과 inter-scan 길이형 marker payload를 먼저 건너뛰고, scanner의 exact·damaged JPEG/AVI 인덱스를
+외부 경계로 사용한다. 따라서 당시의 “첫 APPn 헤더 한 개” 상한 설명보다 현재 구현 범위가 넓다.
+
 ## 관련 항목
 
-- 영향받은 스펙: [carve.py](../specs/0001-carve.md) — 끝 오프셋 계산 단계와 엣지 케이스
+- 영향받은 스펙: [carve 명세](../specs/0001-carve.md) — 끝 오프셋 계산 단계와 엣지 케이스
 - [ADR 0001](0001-resync-recovery.md) — "회색 = 물리적 소실" 원칙을 이 결정이 부분 정정(회색의 상당수는 추출 누락이었다)
 - 포맷 지식: [포맷 메모](../format-notes.md) — 스캔 데이터의 `FF` 처리와 가짜 EOI, EXIF 썸네일
 - 재추출 실증: 822개 재추출, 의심 92개 중 26개 복구·악화 0

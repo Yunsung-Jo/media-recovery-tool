@@ -34,14 +34,15 @@ python carve.py <디스크 이미지> [옵션]
 | 옵션 | 설명 | 기본값 |
 |---|---|---|
 | `-o, --output DIR` | 출력 디렉터리 | `output` |
-| `--max-avi-size MB` | AVI fallback 최대 크기 | `500` |
-| `--save-thumbnails` | 추출 범위 안의 임베디드 JPEG도 저장 | 사용하지 않음 |
+| `--max-avi-size MB` | AVI 경계 탐색·추출 최대 크기 | `500` |
+| `--max-jpeg-size MB` | JPEG 경계 탐색·추출 최대 크기 | `10` |
+| `--save-thumbnails` | JPEG의 Exif APP1 내부 미리보기 JPEG도 저장 | 사용하지 않음 |
 
 예시:
 
 ```bash
 python carve.py usb.img -o output
-python carve.py usb.img -o output --max-avi-size 200 --save-thumbnails
+python carve.py usb.img -o output --max-jpeg-size 20 --max-avi-size 200 --save-thumbnails
 ```
 
 출력 구조:
@@ -55,6 +56,12 @@ output/
 ```
 
 파일명은 디스크 이미지 안의 시작 오프셋을 나타낸다. 예: `0x01A2B000.jpg`.
+최대 크기는 fallback만이 아니라 정상 파일에도 적용되는 하드 상한이다. 더 큰 파일이 예상되면 해당 옵션을
+늘린다. 같은 출력 디렉터리를 재사용하면 같은 이름은 교체되지만 이번 실행에서 사라진 예전 파일은 자동으로
+지우지 않으므로, 기준선을 만들 때는 비어 있는 새 디렉터리를 사용한다.
+
+`시작 후보 발견`은 구조 검증 전·중첩 후보를 포함하므로 최종 파일 수가 아니다. 완료 요약의
+`Thumbnails`는 `--save-thumbnails`를 쓰지 않아 저장을 생략한 Exif 미리보기도 센다.
 
 ## 2. JPEG 복구
 
@@ -106,7 +113,11 @@ python recover.py output/jpeg -o output/jpeg_recovered --time-budget 0
 
 ## 지원 범위와 한계
 
-- 카빙은 JPEG와 AVI 시그니처를 지원한다.
+- 카빙은 정확 JPEG·AVI 시작뿐 아니라 구조가 이어지는 일부 JFIF/Exif·RIFF/form-type 손상 시작을 찾는다.
+- 손상 JPEG 탐지는 JFIF/Exif 앵커와 EOI를 요구한다. APP 없는 table-first JPEG의 시작과 EOI가 함께
+  손상된 경우, `AVI ` form type과 RIFF 시작이 함께 손상된 경우는 자동 탐지하지 못할 수 있다.
+- 비연속 클러스터에 저장된 단편화 파일을 이어 붙이지 않는다. 시작·앵커·후속 구조가 함께 덮어써진 파일의
+  누락 여부도 원본 정답 없이 완전히 증명할 수 없다.
 - JPEG 복구 엔진은 3컴포넌트 baseline JPEG를 대상으로 한다.
 - AVI는 추출만 하며 영상 스트림이나 인덱스를 수리하지 않는다.
 - JPEG 재동기 결과에는 수평 밀림이나 색 캐스트가 남을 수 있다.

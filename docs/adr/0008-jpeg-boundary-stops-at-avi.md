@@ -36,8 +36,16 @@ JPEG 21개는 AVI 내부 MJPEG 프레임이 별도 JPEG로 잘못 분류되던 �
 AVI 인덱스 부재는 이 결정으로 해결되지 않는다. 지원 파일 형식이 추가되면 각 시그니처를 JPEG 경계로
 사용해도 안전한지 검증해야 한다.
 
+### 후속 보완 (2026-07-13)
+
+scanner가 만든 exact·damaged AVI 전체 오프셋을 정렬 인덱스로 사용한다. 다만 JPEG의 pre-SOS 또는
+inter-scan 길이형 segment payload 안 AVI-like hit은 metadata일 수 있으므로 외부 경계에서 제외한다.
+AVI 자체의 RIFF size 신뢰, `movi` stream payload, fallback chunk walk와 OpenDML `AVIX` 연결 규칙은
+[ADR 0010](0010-avi-structure-and-opendml-boundary.md)으로 확장했다.
+
 ## 관련 항목
 
 - [ADR 0007](0007-carve-corrupt-header-boundary.md) — 확장 대상인 JPEG 손상 경계
+- [ADR 0010](0010-avi-structure-and-opendml-boundary.md) — AVI 구조·OpenDML 경계
 - [carve 명세](../specs/0001-carve.md)
 - [포맷 메모](../format-notes.md)

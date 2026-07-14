@@ -1,8 +1,9 @@
 # 현재 상태
 
-- **코드 테스트:** 2026-07-13, 69개 통과
-- **전체 데이터 기준선:** 2026-07-05, `usb.img` 재카빙 후 `recover.py --time-budget 0`
-- **기준 산출물:** `output_c2/` 계열(출력 디렉터리는 Git 비추적)
+- **코드 테스트:** 2026-07-13, 167개 통과
+- **역사적 full-recover 기준선:** 2026-07-05, `usb.img` 재카빙 후 `recover.py --time-budget 0`
+- **역사적 기준 산출물:** `output_c2/` 계열(출력 디렉터리는 Git 비추적)
+- **현행 카빙 감사:** 2026-07-13, `usb.img` 읽기 전용 dry-run(출력 저장·full recover 미실행)
 
 ## 안정적으로 동작하는 범위
 
@@ -12,7 +13,7 @@
 - 가짜 EOI, 손상 세그먼트 길이, 뒤따르는 AVI 때문에 발생하던 과다 카빙 방지
 - 복구 결과 6종 분류와 `report.csv` 지표 출력
 
-## 전체 데이터 기준선
+## 역사적 전체 복구 기준선
 
 | 항목 | 값 | 비고 |
 |------|---:|------|
@@ -24,9 +25,66 @@
 `report.csv`의 action 분포는 `CLEAN 187`, `RECOVERED 611`, `HEADER_RECOVERED 86`, `FAILED 25`,
 `SKIP_UNDECODABLE 69`, `ERROR 0`이다. 합계는 JPEG 978개와 일치한다.
 
-수치는 `output_c2/`의 전체 카빙 결과와 recover `report.csv` 대조에서 확정됐다. 다시 비교할 때는 같은
-`usb.img`와 `--time-budget 0`을 사용하고 원자료에서 재계산한다. 경계 결정은
-[ADR 0007](adr/0007-carve-corrupt-header-boundary.md)과 [ADR 0008](adr/0008-jpeg-boundary-stops-at-avi.md)에 남아 있다.
+이 수치는 `output_c2/`의 이전 파이프라인 전체 카빙 결과와 recover `report.csv` 대조에서 확정한 역사
+기준선이다. 현행 코드의 usable 수치가 아니며 이번 작업에서는 새 출력과 full recover를 만들지 않았다.
+다시 비교할 때는 같은 `usb.img`와 `--time-budget 0`을 사용하고 원자료에서 재계산한다.
+
+## 현행 `usb.img` 읽기 전용 감사
+
+입력 크기는 3,517,120,512바이트다. raw `FF D8 FF` 1,830개를 구조 게이트로 줄이고 손상 앵커 후보를
+더한 결과, 시작 후보는 1,671개였다. 별도의 4 KiB 정렬 DQT/SOF/DHT/SOS 구조 census에서 일관된 JPEG
+구조 680개를 찾았고 모두 현행 hit에 포함됐다.
+
+| 항목 | 값 | 비고 |
+|---|---:|---|
+| exact JPEG 시작 | 1,625 | 구조 후보와 내장 JPEG 포함 |
+| damaged JPEG 시작 | 2 | JFIF/Exif 앵커·후속 구조·EOI 검증 |
+| AVI 시작 | 44 | 모두 exact; 손상 RIFF/form 추가 0 |
+| dry top-level JPEG | 970 | 파일 쓰기 없이 경계와 중첩 분류만 실행 |
+| dry top-level AVI | 44 | 기존 AVI 44개와 경계 변경 0 |
+| Exif 내부 JPEG | 556 | `--save-thumbnails` 없이 분류만 집계 |
+| 처리 오류 | 0 | dry boundary 실행 |
+
+이전 `output_c2`의 JPEG 오프셋과 비교하면 36개가 빠지고 28개가 추가돼 `978 - 36 + 28 = 970`이다.
+
+- 제거 36개: 비임베디드 `SKIP_UNDECODABLE` 위양성 26개, Exif 내부 미리보기 재분류 10개다.
+- 추가 28개: 무효 DQT/DHT 등 header segment가 덮던 exact JFIF 시작 25개, 기존 과다 범위에서 분리된
+  exact JPEG 1개(`0xC15DE6CB`, 76,919바이트), 손상 시작 2개다.
+- header 의미 분할 후보 25개는 경계 계산상 EOI 완결 17개, Pillow load 성공 16개, verify-only 3개,
+  실패 6개였다. 관련 부모 12개는 모두 strict 연속 header walk에 실패했고(DQT 9, DHT 3), tolerant
+  decoder로 열리는 부모 6개 중 5개는 내부 자식의 디코드 바이트와 같았다. 부모 조각도 모두 별도 보존했으며
+  출력 범위 사이 8,745바이트의 gap에는 exact JPEG 시작이 없었다. 25개 모두 SOI 직전 12바이트가 같은
+  record envelope 형식이고 `usb.img` 전체에 같은 형식의 exact JPEG hit이 281개 있다. 이 후보들은 Exif/AVI
+  내부가 아니고 FAT JPG 엔트리와 직접 매핑되지 않아, 구조·디코드 근거를 가진 보수적 raw 분리로 취급한다.
+
+FAT32는 런타임 탐지에 쓰지 않고 독립 감사에만 사용했다. strict archive JPG 엔트리 677개 중 명확한
+149개 일치로 4,096바이트 cluster와 data start `0x011FF000`을 역검증했다. 손상 시작
+`0xC82F0000`과 `0xC8ABD000`은 모두 4 KiB 정렬이고 `scan_start=offset+0x26F`이며, 각각 FAT 선언 크기
+21,938바이트·19,676바이트가 EOI exclusive 크기와 정확히 일치했다. 그러나 현행 `recover.py` 자동 판정은
+둘 다 `SKIP_UNDECODABLE`이므로 “사용 가능한 사진 2개 복구”로 해석하지 않는다.
+
+exact RIFF 시작은 45개였고 그중 `AVI ` form은 44개였다. AVI 44개는 모두 `hdrl`/`avih` 구조를 다시
+확인했으며 RIFF 또는 form type 한쪽의 1~2바이트 손상 모델에서 추가 AVI는 없었다. 이는 RIFF와
+form/구조가 함께 손상되거나 덮어써진 AVI, 단편화 AVI까지 포함한 누락 0 증명이 아니다.
+
+기본 10 MiB JPEG 하드 상한에 닿은 exact 후보는 10개였다. 알려진 다음 외부 경계는 모두 상한 밖이고,
+FAT JPG 선언 크기의 최대값은 5,936,612바이트였으므로 확인된 FAT 파일 누락 근거는 없었다. 다만 FAT에
+매핑되지 않거나 단편화된 큰 파일은 옵션을 올려 별도 검증해야 한다.
+
+### 성능
+
+동일 프로세스에서 출력 쓰기를 막고 scanner와 boundary를 두 번 실행했다. OS cache와 장치 상태 영향을
+받는 참고값이며 파일 저장 시간은 포함하지 않는다.
+
+| 단계 | 이전 구현 | 현행 반복 측정 |
+|---|---:|---:|
+| 시작 후보 스캔 | 약 3.0초 | 7.524~8.790초 |
+| 경계·중첩 분류 | 약 39~41초 | 0.621~0.648초 |
+| 합계 | 약 42~44초 | 8.172~9.411초 |
+
+구조 기반 손상 후보 검증으로 scanner 비용은 늘었지만, 정렬 인덱스·단일 활성 범위·segment-aware 선형
+entropy walk를 사용해 전체 시간은 줄었다. 밀집 `FF 00`과 반복 inter-scan 합성 입력도 크기 2배에 실행
+시간이 대략 2배가 되는 선형 거동을 확인했다.
 
 ## 알려진 한계와 다음 작업
 
