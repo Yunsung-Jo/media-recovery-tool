@@ -16,6 +16,8 @@ ADR은 현재 사용법이나 기준선이 아니라, 이후 구현을 제약하
 | [0008](0008-jpeg-boundary-stops-at-avi.md) | JPEG 경계는 다음 AVI 시그니처에서 정지한다 | Accepted |
 | [0009](0009-structural-damaged-starts.md) | 손상 시작은 앵커와 후속 구조를 함께 검증한다 | Accepted |
 | [0010](0010-avi-structure-and-opendml-boundary.md) | AVI 경계는 RIFF 구조와 연속 OpenDML form으로 검증한다 | Accepted |
+| [0011](0011-resync-segment-mcu-alignment.md) | 복구 절단 구간을 MCU 행 위상으로 재배치한다 | Accepted |
+| [0012](0012-thumbnail-reference-correction.md) | EXIF 썸네일을 참조 오라클로 잔여 밀림·색 캐스트를 보정한다 | Accepted |
 
 새 ADR이 정말 필요한 경우 `배경`, `결정`, `대안`, `결과`만 작성하고 가장 가까운 기존 ADR의 형식을
 따른다. 실험 과정 전체나 현재 기준선은 ADR에 복제하지 않는다.

@@ -33,8 +33,10 @@ rawcarve/
 | `carver/extractors.py` | JPEG marker/entropy 상태와 RIFF chunk 구조로 exclusive 끝을 계산한다. inter-scan APP/COM payload의 내장 시그니처를 건너뛰고, 가짜 EOI·손상 길이·AVI/OpenDML 경계를 처리한다 |
 | `carver/carving.py` | 히트 중복 제거·정렬, pre-SOS 세그먼트/Exif 썸네일/AVI MJPEG 중첩 분류, 경계 호출, 청크 저장과 통계·오류 관리 |
 | `carver/jpegdecode.py` | 비트 단위 제어가 가능한 baseline JPEG 디코더(numba). 임의 시작 비트위치/DC에서 재개, 디싱크 탐지 |
-| `carver/resync.py` | 바이트 오라클(치환/삭제/삽입) + 세그먼트 resync로 디싱크를 복원하는 복구 엔진. 재동기 시 DC 캐리/0 리셋을 함께 시도해 hole을 복구한다([ADR 0004](adr/0004-resync-dc-reset-recovery.md)). 헤더 손상 파일은 `headerfix`로 헤더를 재구성한 뒤 태운다 |
+| `carver/resync.py` | 바이트 오라클(치환/삭제/삽입) + 세그먼트 resync로 디싱크를 복원하는 복구 엔진. 재동기 시 DC 캐리/0 리셋을 함께 시도해 hole을 복구한다. 수락한 편집·재동기의 실패 MCU를 공간 절단점으로 남기고, 절단 밴드 배치 뒤 상단 고정 전역 MCU 행 위상을 먼저 맞춘다. 전역 해가 없을 때만 절단점 주변의 구조적 국소 보정과 보수적 행 스티치로 후퇴한다([ADR 0004](adr/0004-resync-dc-reset-recovery.md), [ADR 0011](adr/0011-resync-segment-mcu-alignment.md)). 헤더 손상 파일은 `headerfix`로 헤더를 재구성한 뒤 태운다 |
 | `carver/headerfix.py` | 헤더(DHT/DQT/SOF/SOS) 손상 파일의 헤더 재구성 pass. 관용 스캔·도너 Annex-K 이식·DQT 스무딩·템플릿 SOF/SOS로 후보를 만들어 구조 게이트로 채택한다([ADR 0006](adr/0006-header-recovery-structural-gates.md)) |
+| `thumbref.py` | 복구본 트리에 썸네일 참조 보정을 일괄 적용하는 선택적 후처리 CLI. 파일 순회·병렬 워커·`report_thumbref.csv` 작성을 맡는다 |
+| `carver/thumbref.py` | 카빙 원본의 EXIF 썸네일을 참조 오라클로 잔여 순환 MCU 밀림·색 캐스트 밴드를 추정·보정한다. 전역 (scale, dy) 정합 → 행별 FFT 순환 상관 → 마진·블록 재검증 게이트 → 회차별 self-check로 개선될 때만 채택하는 밀림 반복 보정 → 색 보정 순서로 동작하며, 근거 없는 파일은 identity로 남긴다([ADR 0012](adr/0012-thumbnail-reference-correction.md)) |
 
 CLI·파일 저장·중첩 분류는 `carver/carving.py`로 분리해 `carve.py`를 얇게 유지한다. 반면 JPEG 경계는 다음
 AVI와 `movi` 포함 여부를 알아야 하고 AVI fallback도 다음 JPEG 구조를 알아야 하므로, 현재 두 경계 계산은
@@ -61,11 +63,22 @@ heap에 한 번에 복사하지 않지만, mmap의 resident set과 OS page cache
 복구는 다음 흐름으로 동작한다.
 
 `recover.py` → `carver/resync.py::recover_file` → `carver/jpegdecode.py::Decoder`.
-손상 지점마다 바이트 편집 또는 비트위치 재동기를 적용해 정렬을 복원하고,
-복구 불가 영역은 회색으로 남긴다. 근거는 [ADR 0001](adr/0001-resync-recovery.md).
+손상 지점마다 바이트 편집 또는 비트위치 재동기를 적용하고 각 실패 MCU를 `phase_cuts`에 기록한다.
+보정 전 렌더로 일반 경로와 헤더 복구 후보를 선택한 뒤, 선택된 렌더를 절단점에서 나눠 adaptive local
+위상과 전체 폭 경계 시그니처로 1차 배치한다. 그 결과의 모든 MCU 행 경계를 1·2·3·4픽셀 strip으로
+검사하고, 상단 행 위상 0에서 누적한 절대 위상 후보를 원래 1차 렌더에서 매번 다시 배치한다. 최대 5회
+연쇄 탐색 중 손실·소유권 조건을 지킨 상태만 진행하며, 독립 잔차 감사까지 통과한 최선 상태만 반환한다.
+전역 해가 없으면 절단점 주변 국소 보정과 기존 행 스티치로 후퇴한다. 복구 절단점이 명시적으로 없으면
+픽셀 신호만으로 공간 이동을 만들지 않는다. 복구 불가 영역과 보정으로 생긴 제한된 간격은 회색으로 남긴다.
+근거는 [ADR 0001](adr/0001-resync-recovery.md)과
+[ADR 0011](adr/0011-resync-segment-mcu-alignment.md)에 있다.
 디코더 구성이 실패하거나 첫 MCU부터 어긋나는 헤더 손상 파일은
 `carver/headerfix.py`가 헤더를 재구성해 엔진에 되돌린다([ADR 0006](adr/0006-header-recovery-structural-gates.md)).
 `recover_file`이 저장 위치와 action을 결정하고, `recover.py`가 모든 결과를 `report.csv`로 합친다.
+
+선택적 후처리는 `thumbref.py` → `carver/thumbref.py::process_file`로 동작한다. 카빙 원본의 EXIF
+썸네일과 복구본을 정합해 잔여 순환 밀림·색 밴드를 추정하고, 게이트를 통과한 보정만 픽셀 도메인에서
+적용해 별도 출력 트리에 저장한다. 보정 근거가 없으면 입력 바이트를 그대로 복사한다([ADR 0012](adr/0012-thumbnail-reference-correction.md)).
 
 ## 지원 경계
 

@@ -94,6 +94,30 @@ python recover.py output/jpeg -o output/jpeg_recovered --time-budget 0
 시간 상한은 파일 전체가 아니라 개별 복구 탐색에 적용된다. 헤더가 손상된 파일은 여러 후보를 평가하므로
 한 파일의 실제 처리 시간이 상한보다 길 수 있다.
 
+## 3. 썸네일 참조 보정 (선택)
+
+복구본에 남은 순환 MCU 밀림과 색 캐스트 밴드를, 카빙 원본의 EXIF 썸네일을 정답 근사로 사용해
+추가 보정한다. 썸네일이 없거나 근거가 부족한 파일은 바이트 그대로 복사된다.
+
+```bash
+python thumbref.py <카빙 원본 디렉터리> <recover 출력 디렉터리> [옵션]
+```
+
+| 옵션 | 설명 | 기본값 |
+|---|---|---|
+| `-o, --output DIR` | 출력 디렉터리 | 입력 옆의 `<이름>_thumbref` |
+| `-j, --jobs N` | 병렬 프로세스 수 (`0`=CPU 수, `1`=순차) | `0` |
+
+예시:
+
+```bash
+python thumbref.py output/jpeg output/jpeg_recovered -j 6
+```
+
+출력 루트의 `report_thumbref.csv`에 파일별 판정(corrected/identity/rollback/skip_*)과 추정
+지표가 기록된다. 보정본은 복구본의 양자화 테이블과 원본 서브샘플링으로 저장해 추가 손실을
+최소화한다. 근거는 [ADR 0012](docs/adr/0012-thumbnail-reference-correction.md)를 본다.
+
 ## 복구 결과
 
 복구 출력 루트에는 `report.csv`와 다음 디렉터리가 생성된다.
@@ -120,7 +144,11 @@ python recover.py output/jpeg -o output/jpeg_recovered --time-budget 0
   누락 여부도 원본 정답 없이 완전히 증명할 수 없다.
 - JPEG 복구 엔진은 3컴포넌트 baseline JPEG를 대상으로 한다.
 - AVI는 추출만 하며 영상 스트림이나 인덱스를 수리하지 않는다.
-- JPEG 재동기 결과에는 수평 밀림이나 색 캐스트가 남을 수 있다.
+- JPEG 복구 결과는 먼저 편집·재동기 절단점의 MCU 밴드를 배치한 뒤, 상단 행을 기준으로 모든 MCU 행
+  경계의 절대 위상을 최대 5회 함께 맞춘다. 전역 해가 없거나 안전 게이트에서 기각될 때만 절단점 주변의
+  짧은 구조 밀림과 기존 보수적 행 스티치를 적용한다. 출력 크기와 원본 MCU 순서를 유지하면서 전체 MCU의
+  5% 안에서 회색 MCU 삽입·유실을 허용한다. 안전 게이트까지 기각된 구간에는 밀림이 남을 수 있고,
+  DC 재설정으로 생긴 색 캐스트는 아직 보정하지 않는다.
 
 현재 전체 데이터 기준선과 후속 작업은 [현재 상태](docs/current-state.md)를 확인한다.
 

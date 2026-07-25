@@ -1,6 +1,4 @@
 *.img
-output/
-output_c1/
 *.pyc
 __pycache__/
 .venv/
@@ -8,4 +6,5 @@ __pycache__/
 dist/
 .mcp.json
 .claude/settings.local.json
-output_c2/
+output*
+shift_experiments*

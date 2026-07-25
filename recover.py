@@ -77,10 +77,15 @@ def main() -> None:
         'filename', 'action', 'gray_before', 'gray_after',
         'undec_before', 'undec_after', 'undec_delta', 'worse', 'recover_sec',
         'ops', 'sub', 'del', 'ins', 'resync', 'hole', 'mcus', 'image_size',
+        'shifted', 'mcu_ins', 'mcu_drop', 'shift_margin', 'shift_reject',
+        'spatial_changed', 'row_global_passes', 'row_global_changes',
+        'row_local_cuts',
         'header_fix',
     ]
     counts: dict[str, int] = {}
     stat_rows: list[tuple[str, int, float, float]] = []  # (action, mcus, undec_before, undec_after)
+    # spatial_changed, shifted bands, inserted, dropped, rejected
+    shift_rows: list[tuple[int, int, int, int, int]] = []
     hdr_fixes: list[str] = []  # 헤더 복구된 파일의 header_fix 태그
     jobs = args.jobs if args.jobs > 0 else (os.cpu_count() or 4)
     work = partial(_work, out_dir=out_dir, quality=args.quality,
@@ -107,11 +112,31 @@ def main() -> None:
             row['hole'] = info['hole']
             row['mcus'] = info['mcus']
             row['image_size'] = f"{info['width']}x{info['height']}"
+            row['shifted'] = info.get('shifted', 0)
+            row['mcu_ins'] = info.get('mcu_ins', 0)
+            row['mcu_drop'] = info.get('mcu_drop', 0)
+            row['shift_margin'] = f"{info.get('shift_margin', 0.0):.3f}"
+            row['shift_reject'] = info.get('shift_reject', 0) or ''
+            spatial_changed = int(info.get('spatial_changed', bool(
+                info.get('shifted', 0)
+                or info.get('row_global_passes', 0)
+                or info.get('row_local_cuts', 0)
+                or info.get('row_shifted', 0))))
+            row['spatial_changed'] = spatial_changed
+            row['row_global_passes'] = int(
+                info.get('row_global_passes', 0))
+            row['row_global_changes'] = int(
+                info.get('row_global_changes', 0))
+            row['row_local_cuts'] = int(info.get('row_local_cuts', 0))
             row['header_fix'] = info.get('header_fix', '')
             stat_rows.append((action, info['mcus'],
                               info['undec_before'], info['undec_after']))
             if info.get('header_fix'):
                 hdr_fixes.append(info['header_fix'])
+            shift_rows.append((
+                spatial_changed,
+                int(info.get('shifted', 0)), int(info.get('mcu_ins', 0)),
+                int(info.get('mcu_drop', 0)), int(info.get('shift_reject', 0))))
         writer.writerow(row)
         counts[action] = counts.get(action, 0) + 1
         if err:
@@ -135,6 +160,14 @@ def main() -> None:
     print(f"\n완료. 리포트: {out_dir / 'report.csv'}")
     for action, cnt in sorted(counts.items()):
         print(f'  {action}: {cnt}개')
+    corrected_files = sum(1 for changed, *_rest in shift_rows if changed)
+    if corrected_files or any(row[4] for row in shift_rows):
+        print('MCU 밀림 보정: '
+              f'{corrected_files}개 파일, '
+              f'{sum(row[1] for row in shift_rows)}개 밴드, '
+              f'삽입 {sum(row[2] for row in shift_rows)} MCU, '
+              f'유실 {sum(row[3] for row in shift_rows)} MCU, '
+              f'안전 한도 기각 {sum(row[4] for row in shift_rows)}개')
 
     # 헤더 복구 요약 — 교체 세그먼트 조합별 건수 + undec 평균
     if hdr_fixes:
@@ -143,7 +176,7 @@ def main() -> None:
                            for tag, n in sorted(Counter(hdr_fixes).items()))
         hr = [r for r in stat_rows if r[0] == 'HEADER_RECOVERED']
         hua = f", undec_after 평균 {sum(r[3] for r in hr) / len(hr):.3f}" if hr else ''
-        print(f'헤더 복구: {len(hdr_fixes)}개{hua} — {combos}')
+        print(f'헤더 복구: {len(hdr_fixes)}개{hua} - {combos}')
 
     # 층화 요약 — 악화·크기 대역이 평균에 가려지지 않게 한다
     rec = [r for r in stat_rows if r[0] == 'RECOVERED']
@@ -153,7 +186,7 @@ def main() -> None:
         print(f'RECOVERED undec 평균: {ub:.3f} → {ua:.3f}')
     worse = [(a, m, b, x) for a, m, b, x in stat_rows if x - b > 0.01]
     print(f'악화(Δundec > +0.01): {len(worse)}개'
-          + (f' — ' + ', '.join(f'{a} {n}개' for a, n in sorted(
+          + (f' - ' + ', '.join(f'{a} {n}개' for a, n in sorted(
               {a: sum(1 for w in worse if w[0] == a) for a in {w[0] for w in worse}}.items()))
              if worse else ''))
     bands = [('<120', 0, 120), ('120-449', 120, 450),

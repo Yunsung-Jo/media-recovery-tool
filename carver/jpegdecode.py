@@ -435,15 +435,22 @@ class Decoder:
         self.dc_rec = dc_rec
         return done, end_bit, err
 
-    def to_rgb(self):
-        """현재 계수 그리드(cy/cb/cr)를 RGB uint8 이미지로."""
+    def to_rgb(self, crop: bool = True):
+        """현재 계수 그리드(cy/cb/cr)를 RGB uint8 이미지로.
+
+        ``crop=False``면 마지막 부분 MCU까지 포함한 패딩 격자를 반환한다.
+        기본값은 파일 헤더의 실제 너비와 높이로 자르는 기존 동작이다.
+        """
         Y = idct_blocks(self.cy)
         Cb = idct_blocks(self.cb)
         Cr = idct_blocks(self.cr)
         Cb = np.repeat(np.repeat(Cb, self.vmax // self.vsamp[1], 0), self.hmax // self.hsamp[1], 1)
         Cr = np.repeat(np.repeat(Cr, self.vmax // self.vsamp[2], 0), self.hmax // self.hsamp[2], 1)
-        H = min(Y.shape[0], Cb.shape[0], self.h.height)
-        W = min(Y.shape[1], Cb.shape[1], self.h.width)
+        H = min(Y.shape[0], Cb.shape[0])
+        W = min(Y.shape[1], Cb.shape[1])
+        if crop:
+            H = min(H, self.h.height)
+            W = min(W, self.h.width)
         Y = Y[:H, :W]; Cb = Cb[:H, :W]; Cr = Cr[:H, :W]
         R = Y + 1.402 * (Cr - 128)
         G = Y - 0.344136 * (Cb - 128) - 0.714136 * (Cr - 128)

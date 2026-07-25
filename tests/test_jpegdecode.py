@@ -44,6 +44,19 @@ def test_decoder_dimensions():
     assert rgb.shape == (200, 320, 3)
 
 
+def test_decoder_can_render_partial_mcu_padding():
+    """crop=False preserves coefficient pixels hidden by partial edge MCUs."""
+    data = encode(smooth_image(61, 93), 2)
+    dec = jd.Decoder(data)
+    dec.decode_full()
+    cropped = dec.to_rgb()
+    padded = dec.to_rgb(crop=False)
+    assert cropped.shape == (61, 93, 3)
+    assert padded.shape == (
+        dec.mcus_y * 8 * dec.vmax, dec.mcus_x * 8 * dec.hmax, 3)
+    assert np.array_equal(padded[:61, :93], cropped)
+
+
 def test_rejects_corrupt_sampling_factor():
     """SOF 샘플링 계수가 0으로 손상된 파일은 거부한다(빈 이미지 크래시 방지)."""
     data = bytearray(encode(smooth_image(), 1))
