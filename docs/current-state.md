@@ -1,6 +1,11 @@
 # 현재 상태
 
-- **코드 테스트:** 2026-07-24, 243개 통과(thumbref 10개 포함)
+> **외부 legacy 자료:** 2026-08-12에 사용자가 저장소의 `output*`과 `shift_experiments`를 외부로
+> 이동했다. 아래의 `output_c2`, `output_c3`, `shift_experiments` 경로는 더 이상 저장소 로컬 경로가
+> 아니라 역사적 dataset/run을 가리키는 기존 명칭이다. 자료는 외부에 보존되어 있으며 새 case/run ID로의
+> 이관은 T-0003 이후에 다룬다. 외부 위치를 이 문서의 영구 계약으로 기록하지 않는다.
+
+- **코드 테스트:** 2026-08-12, 243개 통과(thumbref 10개 포함)
 - **역사적 full-recover 기준선:** 2026-07-05, `usb.img` 재카빙 후 `recover.py --time-budget 0`
 - **역사적 기준 산출물:** `output_c2/` 계열. 출력 디렉터리와 `shift_experiments/` 실험 기록은 Git 비추적이다
 - **현행 카빙 감사:** 2026-07-13, `usb.img` 읽기 전용 dry-run(출력 저장·full recover 미실행)

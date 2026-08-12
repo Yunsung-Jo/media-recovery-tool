@@ -1,27 +1,54 @@
-# rawcarve 작업 지침
+# Media Recovery Tool 전환 작업 지침
 
 이 파일은 이 저장소에서 작업하는 에이전트의 공통 정본이다. 도구별 설정이나 보조 문서와 충돌하면
 이 파일을 우선한다.
 
-## 프로젝트
+## 현재 상태와 작업 정본
 
-손상된 디스크 이미지에서 JPEG·AVI를 추출하고 손상 JPEG를 복구하는 Python 도구다.
+이 저장소는 `rawcarve`에서 **Media Recovery Tool**로 전환 중이다. 손상된 디스크 이미지에서 JPEG·AVI를
+카빙하고 baseline JPEG를 구조적으로 복구한다. 현재 코드는 아직 이전 이름과 구조를 사용하지만 승인된
+목표는 `media-recovery-tool` 저장소와 `src/media_recovery` Python package다.
+
+새 세션은 다음 순서로 문서를 읽는다.
+
+1. 이 파일
+2. [`docs/transition-plan.md`](docs/transition-plan.md) — 승인된 목표 방향과 Task 로드맵
+3. [`docs/tasks/active/`](docs/tasks/active/) — 현재 작업의 범위와 완료 조건
+4. 현재 구현을 이해할 때만 `docs/architecture.md`, `docs/specs/`, `docs/current-state.md`
+
+현재 활성 작업은
+[`T-0001 프로젝트 정체성과 Python 패키지 구조 전환`](docs/tasks/active/T-0001-project-identity-and-package-layout.md)이다.
+T-0001에서는 패키지와 CLI만 이전하고 복구 알고리즘·출력 계약·문서 체계를 함께 재설계하지 않는다.
+
+문서가 충돌하면 다음 우선순위를 사용한다.
+
+1. 이 `AGENTS.md`의 안전·작업 규칙
+2. 활성 Task의 범위·불변조건·완료 조건
+3. `docs/transition-plan.md`의 목표 방향
+4. 현재 코드와 테스트, 현행 architecture/spec
+5. 과거 ADR과 완료 Task의 역사적 설명
+
+## 현재 구현
 
 - `carve.py`: 디스크 이미지에서 JPEG·AVI 추출
 - `recover.py`: 추출한 JPEG를 resync·헤더 복구로 복원
+- `thumbref.py`: EXIF thumbnail 기반 선택적 후처리
 - `carver/`: 스캐너, 추출기, JPEG 디코더, 복구 엔진
 - `tests/`: 회귀 테스트
-- `docs/`: 현재 상태, 동작 계약, 기술 결정, 포맷 메모
+- `docs/`: 전환 계획, Task, 현재 상태, 동작 계약, 기술 결정, 포맷 메모
 
 ## 안전과 범위
 
-- `*.img` 원본과 기존 `output*` 결과는 사용자가 명시적으로 요청하지 않는 한 수정·삭제하지 않는다.
+- `*.img` 원본과 저장소 밖으로 이동한 기존 `output*`·`shift_experiments` 자료는 사용자가 명시적으로
+  요청하지 않는 한 수정·삭제하지 않는다. 외부 위치를 추측하거나 재배치하지 않는다.
+- 목표 구조의 `work/`는 Git 비추적 기본 실행 데이터다. case와 완료 run을 자동 정리하거나 덮어쓰지
+  않고, `cache/`·`tmp/` 삭제도 사용자의 요청 또는 해당 Task의 명시적 범위 안에서만 수행한다.
 - 개인 사진의 장면·인물·위치 등 시각적 내용을 문서나 응답에 묘사하지 않는다. 파일 식별자, 수치,
   색 캐스트·밀림·미복구 영역 같은 기술적 결함만 기록한다.
 - 작업 시작 시 `git status`를 확인하고 기존 사용자 변경을 보존한다.
 - 목표 밖에서 발견한 문제는 바로 구현하지 않는다. 재발 가능성이 높거나 다음 작업을 실제로 제약하는
-  내용만 `docs/current-state.md`·`docs/format-notes.md`에 짧게 반영한다. 현재 목표를 바꾸는 발견은
-  사용자와 합의한 뒤 범위를 조정한다.
+  내용만 활성 Task와 관련 지속 문서에 짧게 반영한다. 현재 목표를 바꾸는 발견은 사용자와 합의한 뒤
+  Task 범위를 조정한다.
 
 ## 구현과 검증
 
@@ -46,8 +73,9 @@
 5. 검증된 방법만 본체에 구현한 뒤 같은 샘플로 재검증한다.
 6. 샘플 결과가 일치하면 사용자에게 알리고 필요한 경우에만 전수 검증한다.
 
-비교 실험과 품질 베이스라인의 `recover.py` 실행은 시간 제한 때문에 결과가 달라지지 않도록
-`--time-budget 0`을 사용한다. 일상적인 빠른 확인에는 이 규칙을 강제하지 않는다.
+현재 CLI가 유지되는 동안 비교 실험과 품질 베이스라인의 `recover.py` 실행은 시간 제한 때문에 결과가
+달라지지 않도록 `--time-budget 0`을 사용한다. T-0001 완료 뒤에는 같은 의미의
+`media-recovery reconstruct --time-budget 0`을 사용한다. 일상적인 빠른 확인에는 이 규칙을 강제하지 않는다.
 
 ## Git
 
@@ -58,20 +86,26 @@
   검증 결과를 적는다.
 - 사용자가 로컬 머지를 요청하면 `git merge --squash <branch>`를 사용하고, 결과 확인 전 브랜치를 삭제하지 않는다.
 
-## 문서화
+## Task와 문서화
 
-문서는 작업 완료 조건이 아니라 필요한 지식을 보존하는 수단이다. 한 작업에 모든 문서 유형을 만들지 않는다.
+모든 계획 작업은 [`docs/tasks/README.md`](docs/tasks/README.md)의 규칙을 따른다. Task는 `docs/tasks/`
+아래에 두며 목표·범위·비범위·불변조건·검증·결과를 기록한다. Task가 필요하다는 이유만으로 모든 작업에
+새 문서를 만들지는 않는다.
+
+전환 중에는 다음 문서 역할을 사용한다.
 
 | 변경 | 문서 |
 |------|------|
 | 설치·사용법·CLI 예시 변경 | `README.md` |
 | 모듈 책임·데이터 흐름 변경 | `docs/architecture.md` |
 | CLI·출력·분류·복구 계약 변경 | 기존 `docs/specs/` 갱신 |
-| 미래 구현을 제약하는 비자명한 선택 | `docs/adr/` 신규 또는 상태 갱신 |
+| 현재 활성 작업의 목표·범위·검증 | `docs/tasks/active/` |
+| 승인된 전체 전환 방향 | `docs/transition-plan.md` |
 | 기준선·알려진 한계·후속 작업 변경 | `docs/current-state.md` 갱신 |
 | 구현 판단에 필요한 JPEG·AVI 사실 | `docs/format-notes.md` 갱신 |
 
-단순 버그 수정·리팩터링은 테스트와 명확한 변경 설명만으로 충분할 수 있다.
+새 ADR은 만들지 않는다. 기존 `docs/adr/`와 `docs/specs/`는 T-0002에서 지속 내용을 새 정본 문서로
+이관하기 전까지 역사 자료로 보존한다. 검토 없이 일괄 삭제하거나 과거 ADR을 완료 Task로 변환하지 않는다.
 
 문서의 수치·코드 참조·링크·검증 주장은 실제 원자료와 현재 코드로 확인한다. 기술 문서는 사실과 인과를
 중심으로 쓰되 문체 자체를 과도하게 규제하지 않는다.
