@@ -456,7 +456,7 @@ artifact_status:      complete | partial | unavailable
 `SOURCE_DECODED`, `RECONSTRUCTION_CANDIDATE_SELECTED`, `NO_SUPPORTED_CANDIDATE`, `UNSUPPORTED`,
 `PROCESSING_ERROR`처럼 보수적으로 표현한다.
 
-정확한 JSON Schema와 enum은 T-0003/T-0004에서 테스트와 함께 확정한다. 의미를 다시 하나의 `action`으로
+정확한 forensic result JSON Schema와 enum은 T-0004에서 테스트와 함께 확정한다. 의미를 다시 하나의 `action`으로
 축소하지 않는 원칙은 확정이다. JSON Schema는 필드별 enum뿐 아니라 허용되는 조합도 검증한다. 예를 들어
 `execution_status=error`인 결과가 어떤 partial artifact를 보존할 수 있는지, `unsupported`와
 `decode_extent=not_attempted`의 관계를 명시해야 한다.
@@ -549,9 +549,9 @@ beam을 점유하지 않도록 header 종류와 source bit 구간별 diversity�
 
 schema, engine, policy 버전은 서로 분리한다.
 
-아래 JSON은 필드의 역할만 보여주는 비규범적 예시다. 문자열을 실제 초기 버전으로 확정한 것이 아니며,
-schema 값은 T-0003/T-0004, engine과 policy 값은 해당 artifact writer와 후보 평가를 도입하는 Task에서
-각각 확정한다.
+아래 JSON은 result field의 역할만 보여주는 비규범적 예시다. T-0003은 case/run/completion schema를 1.0으로
+확정했지만 result schema 문자열은 T-0004, engine과 policy 값은 해당 artifact writer와 후보 평가를
+도입하는 Task에서 각각 확정한다.
 
 ```json
 {
@@ -597,7 +597,7 @@ docs/
 ```
 
 - `design.md`: Current 파이프라인·모듈 책임·핵심 불변조건과 Planned 설계 방향
-- `artifacts.md`: Current 출력·분류·provenance 한계와 Planned case/run·forensic artifact 계약
+- `artifacts.md`: Current 출력·분류·case/run provenance와 Planned forensic artifact 계약
 - `evaluation.md`: Current 자동 검증·역사 기준선·평가 원칙과 Planned corpus·전수 검증 조건
 - `status.md`: Current 검증 범위·알려진 한계와 Planned 우선 작업
 - `format-notes.md`: JPEG·AVI의 객관적인 형식 사실
@@ -655,7 +655,7 @@ T-0002는 `architecture.md`의 구조·불변조건을 `design.md`로, `current-
 ### Legacy 기준 자료 inventory
 
 외부로 이동한 자료의 절대 경로는 영구 문서 계약으로 만들지 않지만, 기준선과 원자료의 연결은 잃지
-않는다. T-0003에서 접근 가능한 legacy 자료마다 다음 inventory를 만든다.
+않는다. T-0003은 접근 가능한 legacy 자료를 [inventory](legacy-inventory.md)에 다음 field로 기록했다.
 
 - 논리 dataset ID와 설명
 - 입력 이미지 전체 SHA-256과 크기
@@ -700,8 +700,8 @@ placement/gap, top-1/top-K 정확도를 측정한다. 정답 원본이 없는 �
 | T-0009 | 반복 placement와 evidence 평가 | AI enhancement |
 | T-0010 | preview와 thumbnail enhancement 분리 | enhancement를 source로 주장 |
 
-Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를 자동 확장하지 않는다. T-0001과 T-0002는
-완료됐으며 다음 계획 작업은 T-0003이다. 새 활성 Task 문서는 실제 작업을 시작할 때 만든다.
+Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를 자동 확장하지 않는다. T-0001~T-0003은
+완료됐으며 다음 계획 작업은 T-0004다. 새 활성 Task 문서는 실제 작업을 시작할 때 만든다.
 
 ## 15. 전환 중 지켜야 할 금지 사항
 
@@ -722,7 +722,11 @@ Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를
   `media-recovery`다.
 - 기존 `carver` 호환 계층, 루트 CLI wrapper와 `recover` alias는 두지 않았다.
 - 이전 전 243개와 이전 후 248개 테스트가 통과했고 합성 fixture의 정규화 snapshot이 일치했다.
-- `output*`과 `shift_experiments`는 사용자가 저장소 밖으로 이동한 상태를 유지한다.
+- `output*`과 `shift_experiments`는 사용자가 저장소 밖으로 이동한 상태를 유지한다. T-0003 inventory는
+  외부 위치를 탐색하지 않고 해당 자료를 `unverified`로 남겼다.
 - `usb.img`는 Git 비추적 원본으로 보존하며 T-0001에서는 전수 처리하지 않았다.
 - T-0002에서 Current/Planned 지속 문서 골격을 만들고 기존 architecture, current-state, spec과 ADR을
-  점진적으로 연결했다. 다음 계획 작업은 T-0003의 `work/`·run·JSONL artifact 계약과 legacy inventory다.
+  점진적으로 연결했다.
+- T-0003에서 `work/`, source hash case, stage run lineage·lifecycle, strict JSON/JSONL, completion seal과
+  legacy inventory를 구현했다. 기존 CLI에는 연결하지 않았고 다음 계획 작업은 T-0004의 forensic domain과
+  NPZ schema다.

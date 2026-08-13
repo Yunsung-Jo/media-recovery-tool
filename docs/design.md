@@ -32,7 +32,8 @@
   밴드를 선택적으로 보정한다.
 - AVI는 경계를 계산해 추출할 뿐 stream, index 또는 재생 구조를 복구하지 않는다.
 
-`render` 명령, case/run, forensic artifact와 N-best 후보 보존은 현재 없다.
+`render` 명령, forensic artifact와 N-best 후보 보존은 현재 없다. T-0003의 case/run persistence 기반은
+내부 API로 존재하지만 이 세 CLI 흐름에는 아직 연결되지 않았다.
 
 ### 모듈 책임
 
@@ -47,6 +48,7 @@
 | [`reconstruction/engine.py`](../src/media_recovery/reconstruction/engine.py) | byte 편집, bit resync, decode segment, MCU placement, 렌더·분류·저장 |
 | [`reconstruction/header_hypotheses.py`](../src/media_recovery/reconstruction/header_hypotheses.py) | DHT/DQT/SOF/SOS 후보 재구성과 구조 gate |
 | [`enhancement/thumbnail_guided.py`](../src/media_recovery/enhancement/thumbnail_guided.py) | thumbnail 정합, 행별 밀림·색 보정 추정과 self-check |
+| [`artifacts/`](../src/media_recovery/artifacts/) | source hash case 등록, stage run lineage·lifecycle, strict JSON/JSONL과 completed run seal |
 
 CLI·저장·중첩 분류는 별도 모듈이지만 JPEG와 AVI boundary는 현재 한 파일에 있다. 두 경계가 다음 외부
 후보와 AVI 내부 MJPEG 여부를 함께 알아야 하기 때문이다. 지원 형식이 늘어나 이 상호 참조가 커질 때
@@ -123,6 +125,37 @@ read-only disk mmap
 
 임계와 action 판정, CSV 필드의 세부 계약은 [reconstruct spec](specs/0002-recover.md)이 정본이다.
 
+### Case/run persistence 데이터 흐름과 불변조건
+
+T-0003에서 추가한 내부 persistence는 기존 command output과 격리되어 다음 흐름을 제공한다.
+
+```text
+source 절대 경로
+  → 전체 SHA-256·크기로 case 등록
+  → stage·completed parent·version·environment·options로 run 생성
+  → source hash 재검증 후 created → running
+  → coordinator가 canonical JSONL을 atomic replace
+  → completed run.json + completed.json seal
+```
+
+1. 기본 work root는 호출 현재 디렉터리의 `./work`이고 재정의할 수 있다. source는 기본적으로 복사하지
+   않으며 `/work/` 전체는 Git 비추적이다.
+2. case ID는 source SHA-256 앞 20 hex에 안정적이다. 기존 prefix가 있으면 전체 hash를 비교해 다른
+   source를 거부하고 기존 metadata를 덮어쓰지 않는다.
+3. discovery는 부모가 없고 후속 stage는 같은 case에서 stage가 맞으며 completion seal을 통과한 부모만
+   참조한다.
+4. 새 run 시작과 interrupted/error resume는 source를 다시 hash한다. resume는 tool·engine·policy·artifact
+   schema version, environment와 canonical options가 같으며 caller가 stage 지원을 명시할 때만 허용한다.
+   이전 attempt는 보존한다.
+5. completed run은 API에서 쓰기와 resume를 거부한다. reader는 completion marker와 `run.json`뿐 아니라
+   봉인한 전체 파일 집합·크기·SHA-256도 대조해 외부 변경이나 추가를 탐지한다.
+6. JSON은 strict UTF-8이고 JSONL은 record별 LF다. non-finite number와 중복 key를 거부하며 coordinator가
+   전순서를 갖는 stable key와 canonical byte로 정렬한 뒤 임시 파일을 원자 교체한다.
+7. dirty run은 diff hash만 기록할 수 없고 실제 patch byte를 `provenance/dirty.patch`로 함께 보존해야 한다.
+
+schema·ID·completion marker의 정확한 on-disk 계약은 [artifacts.md](artifacts.md)가 정본이다. 이 기반은
+현재 `carve`, `reconstruct`, `enhance`의 인자·output·CSV를 바꾸지 않는다.
+
 ### Enhance 데이터 흐름과 경계
 
 현재 `enhance`는 reconstruction과 분리된 선택적 후처리다. Exif thumbnail은 생성 pixel source가 아니라
@@ -140,8 +173,8 @@ read-only disk mmap
 - reconstruction은 8-bit, 3-component baseline JPEG를 대상으로 한다. progressive와 비 3컴포넌트 JPEG는
   구조 복구 대상이 아니다.
 - AVI는 객체 경계와 연속 OpenDML form을 추출할 수 있지만 stream·index를 수리하지 않는다.
-- 출력은 현재 디렉터리 트리와 CSV 중심이다. source span, virtual edit, 후보와 선택 근거를 재감사할
-  forensic record는 없다.
+- CLI 출력은 현재 디렉터리 트리와 CSV 중심이다. 별도 case/run 기반은 있지만 source span, virtual edit,
+  후보와 선택 근거를 재감사할 forensic record와 CLI 연결은 없다.
 
 ### 현재 비용과 I/O 경계
 
@@ -183,8 +216,6 @@ disk의 observed byte와 절대 offset
 
 | Planned 영역 | 목표 | 최초 담당 Task |
 |---|---|---|
-| `work/`, case와 stage run | 입력 hash, 실행 lineage·lifecycle, 완료 run 불변성 | T-0003 |
-| JSON/JSONL 계약 | case/run과 streaming record, 결정적 coordinator write | T-0003 |
 | domain과 NPZ schema | object, hypothesis, segment, source span, coefficient와 validity | T-0004 |
 | reconstruction 책임 분리 | 현행 single-best 동작을 보존한 engine 분해 | T-0005 |
 | forensic artifact 출력 | 현행 결과와 근거를 재감사 가능한 record로 저장 | T-0006 |
@@ -192,6 +223,9 @@ disk의 observed byte와 절대 offset
 | entropy beam과 validity | 복수 resync, block/component validity | T-0008 |
 | 반복 placement·평가 | gap·overlap·evidence 기반 후보 재평가 | T-0009 |
 | `render`와 enhancement 분리 | artifact에서 preview를 재생성하고 생성값을 분리 | T-0010 |
+
+`work/`, case와 stage run, strict JSON/JSONL의 공통 기반은 T-0003에서 구현했다. 위 Planned 책임은 이
+기반에 실제 forensic record를 정의하고 기존 stage를 연결하는 후속 범위다.
 
 `src/media_recovery/domain`, `artifacts`, `rendering` 같은 목표 이름이 문서에 나타나더라도 현재 package에
 해당 구현이 있다는 뜻은 아니다. Planned artifact와 상태 모델은 [artifacts.md](artifacts.md), 검증 계획은

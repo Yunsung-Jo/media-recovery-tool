@@ -18,14 +18,16 @@
 | package | `src/media_recovery` |
 | CLI | `media-recovery carve`, `reconstruct`, `enhance` |
 | Python 지원 | `>=3.10` |
-| 자동 회귀 기준선 | 2026-08-13, Python 3.12.13에서 248개 통과 |
+| 자동 회귀 기준선 | 2026-08-13, Python 3.12.13에서 288개 통과 |
 | 현재 출력 | command별 디렉터리 트리, JPEG/AVI와 CSV |
-| case/run·forensic artifact | 구현되지 않음 |
+| case/run 기반 | 내부 Python API, schema 1.0과 completion seal 구현; 기존 CLI에는 미연결 |
+| forensic object/result·NPZ | 구현되지 않음 |
 | `render` 명령 | 구현되지 않음 |
 
 T-0001은 package와 CLI 경로를 이전했지만 알고리즘, 여섯 action과 현재 출력 의미를 바꾸지 않았다.
 T-0002는 Python code를 변경하지 않고 문서 정본을 Current/Planned로 나누고 기존 `architecture.md`와
-`current-state.md`를 완전히 이관해 삭제했다. 다음 계획 작업은 T-0003이다.
+`current-state.md`를 완전히 이관해 삭제했다. T-0003은 격리된 `work/`·case/run persistence, strict
+JSON/JSONL과 legacy inventory를 구현했다. 다음 계획 작업은 T-0004다.
 
 ### 확인된 기능 범위
 
@@ -38,17 +40,20 @@ T-0002는 Python code를 변경하지 않고 문서 정본을 Current/Planned로
 - 수락한 편집·resync 절단점 기반 MCU band와 상단 고정 전역 행 위상 보정
 - 선택적 Exif thumbnail 참조 밀림·색 cast 후처리와 self-check
 - action 6종, `report.csv`, `report_thumbref.csv` 출력
+- source SHA-256 case 등록, stage parent lineage, lifecycle·resume와 completed run file seal
+- UTF-8/LF strict JSONL의 coordinator ordering과 atomic replace
 
 ### 현재 검증 경계
 
-- 전체 자동 테스트 248개가 통과한다.
+- 전체 자동 테스트 288개가 통과한다. T-0003은 case/run과 artifact I/O test 40개를 추가했다.
 - T-0001 합성 fixture에서 package 이전 전후 파일 집합, artifact hash, action과 CSV 안정 필드가 같았다.
 - v8 전역 행 placement는 고난도·구조·정상 고정 표본을 통과했지만 `output_c3/jpeg` 970개를 최신 code로
   다시 전수 처리하지 않았다.
 - 2026-07-13의 `usb.img` 감사는 읽기 전용 scanner·boundary 실행이었고 full reconstruct나 출력 저장을
   수행하지 않았다.
 - 역사적 `output_c2`·`output_c3`·`shift_experiments`는 저장소 밖의 legacy 자료 이름이다. 외부 위치와
-  hash를 현재 문서에서 확인하거나 추측하지 않았다.
+  hash를 현재 문서에서 확인하거나 추측하지 않았다. 접근 가능한 `usb.img`는 크기와 접근 여부만 확인하고
+  비용 큰 전체 hash는 계산하지 않았다([Legacy inventory](legacy-inventory.md)).
 
 정확한 역사 수치와 해석 제한은 [evaluation.md](evaluation.md)에 있다.
 
@@ -89,9 +94,11 @@ T-0002는 Python code를 변경하지 않고 문서 정본을 Current/Planned로
    AVI는 경계를 추출하지만 `idx1`·OpenDML index를 재구성하거나 audio/video stream을 수리하지 않는다.
    일부 player의 재생 시간 오독은 카빙 경계와 별도 문제다.
 
-8. **현재 provenance 부족**
-   출력 directory와 CSV는 input hash, code revision, run lineage, source bit span, candidate evidence를
-   canonical하게 보존하지 않는다. 같은 이름의 출력 directory 재사용은 이전 파일을 남길 수 있다.
+8. **현재 CLI provenance 연결 부족**
+   case/run 기반은 input hash, tool·engine·policy·schema version, environment, options와 lineage를 보존하지만
+   기존 CLI가 아직 사용하지 않는다.
+   따라서 현재 output directory와 CSV에는 source bit span과 candidate evidence가 없고 같은 이름의 output
+   directory 재사용은 이전 파일을 남길 수 있다.
 
 ### 현재 사용 시 주의
 
@@ -106,18 +113,17 @@ T-0002는 Python code를 변경하지 않고 문서 정본을 Current/Planned로
 
 | 순서 | Planned Task | 목표 | 이 Task 전에는 없는 것 |
 |---|---|---|---|
-| 1 | T-0003 | `work/`, stage run lineage·lifecycle, JSONL artifact 계약과 legacy inventory | case/run writer, 완료 run 불변성 |
-| 2 | T-0004 | forensic domain과 coefficient·validity NPZ schema | source span과 typed array record |
-| 3 | T-0005 | 현행 single-best 동작을 보존한 engine 책임 분리 | 새 algorithm이나 결과 개선 |
-| 4 | T-0006 | 현재 single-best 결과의 forensic artifact 출력 | N-best 선택 |
-| 5 | T-0007 | object boundary와 header N-best | entropy beam |
-| 6 | T-0008 | entropy beam search와 component validity | thumbnail 판단 사용 |
-| 7 | T-0009 | 반복 placement와 evidence 평가 | AI enhancement |
-| 8 | T-0010 | artifact 기반 preview와 thumbnail enhancement 분리 | enhancement를 source로 주장 |
+| 1 | T-0004 | forensic domain과 coefficient·validity NPZ schema | source span과 typed array record |
+| 2 | T-0005 | 현행 single-best 동작을 보존한 engine 책임 분리 | 새 algorithm이나 결과 개선 |
+| 3 | T-0006 | 현재 single-best 결과의 forensic artifact 출력 | N-best 선택 |
+| 4 | T-0007 | object boundary와 header N-best | entropy beam |
+| 5 | T-0008 | entropy beam search와 component validity | thumbnail 판단 사용 |
+| 6 | T-0009 | 반복 placement와 evidence 평가 | AI enhancement |
+| 7 | T-0010 | artifact 기반 preview와 thumbnail enhancement 분리 | enhancement를 source로 주장 |
 
-T-0003에서 `work/`·run 구조와 접근 가능한 legacy inventory를 함께 검토한 뒤 `/output*/`와
-`/shift_experiments*/` ignore 규칙의 필요성을 다시 판단한다. 현재는 두 규칙과 `.mcp.json`,
-`.claude/settings.local.json` 보호 규칙을 유지한다.
+T-0003은 `work/`·run 구조와 접근 가능한 legacy inventory를 함께 검토했다. `/output*/`는 현행 CLI의 기본
+출력 보호, `/shift_experiments*/`는 미이관 외부 자료의 우발 추적 방지를 위해 각각 유지했다. `/work/`,
+`.mcp.json`, `.claude/settings.local.json` 보호 규칙도 유지한다.
 
 ### 장기 지원 방향
 

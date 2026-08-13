@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://media-recovery-tool.local/schemas/media-recovery.run-1.0.schema.json",
+  "title": "Media Recovery Tool run metadata 1.0",
+  "$comment": "Parent file integrity, parent stage compatibility, and final-attempt ordering are enforced by the Python reader.",
+  "type": "object",
+  "required": [
+    "schema",
+    "schema_version",
+    "required_features",
+    "run_id",
+    "case_id",
+    "stage",
+    "parent_run_ids",
+    "status",
+    "status_detail",
+    "source",
+    "versions",
+    "environment",
+    "options",
+    "random_seed",
+    "task_id",
+    "created_at",
+    "started_at",
+    "finished_at",
+    "attempts",
+    "provenance"
+  ],
+  "properties": {
+    "schema": {"const": "media-recovery.run"},
+    "schema_version": {"type": "string", "pattern": "^1\\.[0-9]+$"},
+    "required_features": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run-[0-9]{8}T[0-9]{6}Z-[a-z2-7]{6}$"
+    },
+    "case_id": {"type": "string", "pattern": "^case-[0-9a-f]{20}$"},
+    "stage": {
+      "enum": ["discovery", "reconstruction", "rendering", "enhancement"]
+    },
+    "parent_run_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^run-[0-9]{8}T[0-9]{6}Z-[a-z2-7]{6}$"
+      },
+      "uniqueItems": true
+    },
+    "status": {"enum": ["created", "running", "completed", "interrupted", "error"]},
+    "status_detail": {"type": ["string", "null"]},
+    "source": {
+      "type": "object",
+      "required": ["sha256", "size"],
+      "properties": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "versions": {
+      "type": "object",
+      "required": ["tool", "engine", "policy", "schema"],
+      "properties": {
+        "tool": {"type": "string", "minLength": 1},
+        "engine": {"type": "string", "minLength": 1},
+        "policy": {"type": "string", "minLength": 1},
+        "schema": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    },
+    "environment": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": true
+    },
+    "options": {"type": "object"},
+    "random_seed": {"type": ["integer", "null"]},
+    "task_id": {"type": ["string", "null"]},
+    "created_at": {"type": "string"},
+    "started_at": {"type": ["string", "null"]},
+    "finished_at": {"type": ["string", "null"]},
+    "attempts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["started_at", "finished_at", "outcome", "detail"],
+        "properties": {
+          "started_at": {"type": "string"},
+          "finished_at": {"type": ["string", "null"]},
+          "outcome": {"enum": ["completed", "interrupted", "error", null]},
+          "detail": {"type": ["string", "null"]}
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "finished_at": {"type": "null"},
+              "outcome": {"type": "null"}
+            }
+          },
+          {
+            "properties": {
+              "finished_at": {"type": "string"},
+              "outcome": {"enum": ["completed", "interrupted", "error"]}
+            }
+          }
+        ],
+        "additionalProperties": true
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["git_commit", "dirty", "patch"],
+      "properties": {
+        "git_commit": {"type": ["string", "null"]},
+        "dirty": {"type": "boolean"},
+        "patch": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["path", "sha256", "size"],
+              "properties": {
+                "path": {"const": "provenance/dirty.patch"},
+                "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "size": {"type": "integer", "minimum": 1}
+              },
+              "additionalProperties": true
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"dirty": {"const": true}},
+            "required": ["dirty"]
+          },
+          "then": {"properties": {"patch": {"type": "object"}}},
+          "else": {"properties": {"patch": {"type": "null"}}}
+        }
+      ],
+      "additionalProperties": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"stage": {"const": "discovery"}},
+        "required": ["stage"]
+      },
+      "then": {"properties": {"parent_run_ids": {"maxItems": 0}}}
+    },
+    {
+      "if": {
+        "properties": {
+          "stage": {"enum": ["reconstruction", "rendering", "enhancement"]}
+        },
+        "required": ["stage"]
+      },
+      "then": {"properties": {"parent_run_ids": {"minItems": 1}}}
+    },
+    {
+      "if": {
+        "properties": {"status": {"const": "created"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "started_at": {"type": "null"},
+          "finished_at": {"type": "null"},
+          "attempts": {"maxItems": 0}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"status": {"const": "running"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "started_at": {"type": "string"},
+          "finished_at": {"type": "null"},
+          "attempts": {
+            "minItems": 1,
+            "contains": {
+              "properties": {
+                "finished_at": {"type": "null"},
+                "outcome": {"type": "null"}
+              },
+              "required": ["finished_at", "outcome"]
+            },
+            "minContains": 1,
+            "maxContains": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {"enum": ["completed", "interrupted", "error"]}
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "started_at": {"type": "string"},
+          "finished_at": {"type": "string"},
+          "attempts": {
+            "minItems": 1,
+            "not": {
+              "contains": {
+                "properties": {"outcome": {"type": "null"}},
+                "required": ["outcome"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"status": {"const": "completed"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "attempts": {
+            "contains": {
+              "properties": {"outcome": {"const": "completed"}},
+              "required": ["outcome"]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"status": {"const": "interrupted"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "attempts": {
+            "contains": {
+              "properties": {"outcome": {"const": "interrupted"}},
+              "required": ["outcome"]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"status": {"const": "error"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "attempts": {
+            "contains": {
+              "properties": {"outcome": {"const": "error"}},
+              "required": ["outcome"]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": true
+}

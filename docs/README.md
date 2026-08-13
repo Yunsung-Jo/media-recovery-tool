@@ -14,6 +14,7 @@
 | 5 | [산출물](artifacts.md) | 현재 output·action·CSV와 Planned provenance는 무엇인가? | 지속 정본 |
 | 6 | [평가](evaluation.md) | 무엇을 어떻게 검증했고 수치를 어떻게 해석하는가? | 지속 정본 |
 | 7 | [상태](status.md) | 현재 검증 범위·한계와 다음 우선순위는 무엇인가? | 지속 정본 |
+| 필요 시 | [Legacy inventory](legacy-inventory.md) | 과거 기준 자료에서 무엇을 현재 확인할 수 있는가? | T-0003 확인 기록 |
 | 필요 시 | [carve spec](specs/0001-carve.md), [reconstruct spec](specs/0002-recover.md) | 현재 CLI와 세부 edge case가 무엇을 보장하는가? | 유지 중인 Current 계약 |
 | 필요 시 | [포맷 메모](format-notes.md) | JPEG·AVI 처리에서 어떤 객관적 사실을 전제하는가? | 구현 참고 정본 |
 | 역사 확인 | [ADR 목록](adr/README.md) | 비자명한 선택은 어떤 배경·대안에서 나왔는가? | 유지 중인 역사 자료 |

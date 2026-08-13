@@ -16,10 +16,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = [
+    "jsonschema>=4.18",
+    "pytest",
+]
 
 [project.scripts]
 media-recovery = "media_recovery.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.data-files]
+"schemas" = ["schemas/*.schema.json"]

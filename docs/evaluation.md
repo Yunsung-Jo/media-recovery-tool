@@ -27,6 +27,22 @@ thumbnail-guided enhancement를 포함한다. Windows `-j 2` 병렬 spawn은 이
 아니라 아래 T-0001 패키지 전환에서 별도로 실행한 smoke 검증이다. 248개 통과는 중요한 코드 회귀 기준이지만
 실제 손상 매체에서 객체 누락 0, 최적 복구 또는 source 정확도를 증명하지 않는다.
 
+### T-0003 persistence 기준선
+
+T-0003은 같은 Python 3.12.13 환경에서 case/run·strict JSON/JSONL test 40개를 추가했다. 임시 디렉터리와
+작은 합성 source만 사용하며 외부 legacy 자료나 `usb.img`를 처리하지 않는다.
+
+- 전체: `288 passed in 15.84s`
+- 새 근접 test: `40 passed in 2.86s`
+- 검증 범위: default/override work root, case hash·prefix 충돌, run ID·lineage, lifecycle·resume,
+  source start 재검증, completion seal·staging failure, dirty patch, 실제 JSON Schema validation,
+  UTF-8/LF ordering·sort key 전순서와 atomic failure
+- wheel: project `.venv`의 격리 build 성공, schema JSON 3개 포함 확인
+
+기존 CLI·discovery·reconstruction·enhancement source는 변경하지 않았고 기존 248개가 새 전체 suite 안에서
+계속 통과했다. 이 기준선은 persistence 불변조건과 기존 동작 회귀 0을 보여주지만 forensic domain이나 실제
+복구 결과 schema가 구현됐다는 뜻은 아니다.
+
 ### 패키지 전환 동등성
 
 T-0001은 같은 Python 3.12.13, Pillow 12.3.0, NumPy 2.4.6, Numba 0.66.0 환경에서 이전 전 243개와 이전 후
@@ -82,6 +98,8 @@ DC=0 resync는 실제 콘텐츠를 디코드해도 chroma offset 때문에 `gray
 `shift_experiments`는 2026-08-12 이후 저장소 밖에 보존된 legacy 자료의 논리 이름이다. 외부 절대 경로는
 확인하지 않았고 영구 문서 계약으로 만들지 않는다. 이 절은 T-0001 시점 `current-state.md`의 검증 수치와
 파일별 기술 기록을 완전히 흡수했으며, 해당 legacy 문서는 T-0002에서 삭제했다.
+T-0003에서 확인한 원자료 접근성, hash·record의 확인 수준과 고정 object ID 목록은
+[Legacy 기준 자료 inventory](legacy-inventory.md)에 있다.
 
 ### 2026-07-05 `output_c2` full-recover 기준선
 
@@ -330,7 +348,7 @@ truncation과 가짜 EOI를 seed와 함께 주입하는 합성 corpus를 계획�
 2. 통제 손상 corpus와 정상 guard에서 구조·정답 회귀 0을 확인한다.
 3. 실제 고정 표본의 자동 지표와 기술적 육안 판정이 일치하는지 확인한다.
 4. 필요성과 예상 비용을 알린 뒤에만 `--time-budget 0` 전수를 실행한다.
-5. input hash, code·policy version, 옵션과 결과 artifact를 run provenance에 묶는다.
+5. input hash, tool·engine·policy·schema version, environment, 옵션과 결과 artifact를 run provenance에 묶는다.
 
 case/run과 legacy inventory가 구현되기 전에는 과거 dataset의 hash·record 수·report hash·git 상태를
 추측해 채우지 않는다. 접근할 수 없는 값은 `unverified`로 남기며 이 작업은 T-0003 범위다.

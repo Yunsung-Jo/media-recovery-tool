@@ -17,10 +17,11 @@ baseline JPEG를 구조적으로 복구한다. 저장소와 Python package 정�
 4. 현재 구현을 이해할 때 `docs/design.md`, `docs/artifacts.md`, `docs/status.md`, 필요하면 `docs/specs/`
 
 현재 활성 Task는 없다. 완료한
-[`T-0002 Current와 Planned 지속 문서 구조`](docs/tasks/completed/2026/T-0002-current-planned-document-structure.md)는
-Python code와 현재 계약을 바꾸지 않고 문서 정본을 이관했다. `architecture.md`와 `current-state.md`는
-내용의 완전한 흡수와 참조 0을 확인한 뒤 삭제했고 spec과 ADR은 현재 계약·결정 근거로 유지했다.
-다음 계획 작업은 T-0003이고 실제 시작할 때 합의한 범위로 활성 Task를 만든다.
+[`T-0003 work와 run lineage·lifecycle 및 JSONL 기반`](docs/tasks/completed/2026/T-0003-work-run-lineage-lifecycle-and-jsonl.md)은
+기존 CLI를 바꾸지 않고 `work/`, source hash case, 시작 전 source 재검증, stage run, strict JSON/JSONL과
+completion seal을 구현하고 legacy inventory를 만들었다. case/run은 아직 기존 명령에 연결되지 않았고
+forensic domain·NPZ는 구현되지 않았다. 다음 계획 작업은 T-0004이고 실제 시작할 때 합의한 범위로 활성
+Task를 만든다.
 
 문서가 충돌하면 다음 우선순위를 사용한다.
 
@@ -35,6 +36,7 @@ Python code와 현재 계약을 바꾸지 않고 문서 정본을 이관했다. 
 - `media-recovery carve`: 디스크 이미지에서 JPEG·AVI 추출
 - `media-recovery reconstruct`: 추출한 JPEG를 resync·헤더 복구로 복원
 - `media-recovery enhance`: EXIF thumbnail 기반 선택적 후처리
+- `src/media_recovery/artifacts/`: 격리된 case/run lineage·lifecycle, strict JSON/JSONL과 completion seal
 - `src/media_recovery/`: CLI, 스캐너, 추출기, JPEG 디코더, 복구 엔진
 - `tests/`: 회귀 테스트
 - `docs/`: Current/Planned 설계·산출물·평가·상태 정본, 전환 계획, Task, 현행 spec, 역사 ADR, 포맷 메모

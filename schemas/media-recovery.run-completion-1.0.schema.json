@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://media-recovery-tool.local/schemas/media-recovery.run-completion-1.0.schema.json",
+  "title": "Media Recovery Tool completed run seal 1.0",
+  "type": "object",
+  "required": [
+    "schema",
+    "schema_version",
+    "required_features",
+    "run_id",
+    "completed_at",
+    "files"
+  ],
+  "properties": {
+    "schema": {"const": "media-recovery.run-completion"},
+    "schema_version": {"type": "string", "pattern": "^1\\.[0-9]+$"},
+    "required_features": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run-[0-9]{8}T[0-9]{6}Z-[a-z2-7]{6}$"
+    },
+    "completed_at": {"type": "string"},
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "size"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "size": {"type": "integer", "minimum": 0}
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
