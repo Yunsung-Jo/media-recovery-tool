@@ -1,4 +1,4 @@
-# carver/thumbref.py
+# media_recovery/enhancement/thumbnail_guided.py
 """EXIF 썸네일을 참조 오라클로 쓰는 잔여 밀림·색 캐스트 보정.
 
 recover 산출물에 남은 순환 MCU 밀림과 DC 색 밴드를, 같은 카빙 원본의 EXIF

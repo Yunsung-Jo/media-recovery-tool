@@ -1,12 +1,12 @@
-# thumbref.py
-"""recover 산출물에 썸네일 오라클 보정을 일괄 적용합니다.
+# media_recovery/cli/enhance.py
+"""reconstruct 산출물에 썸네일 오라클 보정을 일괄 적용합니다.
 
 카빙 원본의 EXIF 썸네일을 정답 근사로 사용해, 복구본에 남은 순환 MCU 밀림과
 색 캐스트 밴드를 추정·보정합니다. 근거가 없는 파일은 바이트 그대로 복사하고,
 시프트를 적용했는데 self-check가 개선되지 않으면 되돌립니다(rollback).
 
 사용 예:
-    python thumbref.py output_c3/jpeg output_c3/jpeg_recovered \
+    media-recovery enhance output_c3/jpeg output_c3/jpeg_recovered \
         -o output_c3/jpeg_recovered_thumbref -j 6
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
-from carver.thumbref import parse_mcu_size, process_file
+from media_recovery.enhancement.thumbnail_guided import parse_mcu_size, process_file
 
 # PIL subsampling 인자: 0=4:4:4, 1=4:2:2, 2=4:2:0
 _SUBSAMPLING = {(8, 8): 0, (16, 8): 1, (16, 16): 2}
@@ -75,16 +75,19 @@ def _work(rec_path: Path, orig_dir: Path, rec_root: Path, out_root: Path):
         return rec_path.name, "error", {}, round(time.time() - t0, 1), str(e)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="recover 산출물에 EXIF 썸네일 오라클 밀림·색 보정을 적용합니다.")
+DESCRIPTION = "reconstruct 산출물에 EXIF 썸네일 오라클 밀림·색 보정을 적용합니다."
+
+
+def configure_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("orig", help="카빙 원본 디렉토리 (예: output_c3/jpeg)")
-    parser.add_argument("recovered", help="recover 출력 디렉토리 (예: output_c3/jpeg_recovered)")
+    parser.add_argument("recovered", help="reconstruct 출력 디렉토리 (예: output_c3/jpeg_recovered)")
     parser.add_argument("-o", "--output", default=None,
                         help="출력 디렉토리 (기본: <recovered>_thumbref)")
     parser.add_argument("-j", "--jobs", type=int, default=0,
                         help="병렬 프로세스 수 (기본: 0=CPU 수, 1=순차)")
-    args = parser.parse_args()
+
+
+def run(args: argparse.Namespace) -> None:
 
     orig_dir = Path(args.orig)
     rec_root = Path(args.recovered)
@@ -133,6 +136,12 @@ def main() -> None:
     print(f"\n완료. 리포트: {out_root / 'report_thumbref.csv'}")
     for status, cnt in sorted(counts.items()):
         print(f"  {status}: {cnt}개")
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
+    configure_parser(parser)
+    run(parser.parse_args(argv))
 
 
 if __name__ == "__main__":

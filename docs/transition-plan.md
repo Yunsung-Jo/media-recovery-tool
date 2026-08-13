@@ -11,9 +11,10 @@
 
 ## 1. 문제와 목표
 
-현재 구현에는 의미 있는 카빙·복구 기능과 243개의 회귀 테스트가 있지만 다음 문제가 있다.
+현재 구현에는 의미 있는 카빙·복구 기능과 248개의 회귀 테스트가 있지만 다음 문제가 있다.
 
-- `carver/resync.py` 한 파일이 엔트로피 탐색, 디코드, 공간 배치, 평가, 분류와 저장을 함께 담당한다.
+- `src/media_recovery/reconstruction/engine.py` 한 파일이 엔트로피 탐색, 디코드, 공간 배치, 평가,
+  분류와 저장을 함께 담당한다.
 - 복구 상태가 튜플, NumPy 배열, 가변 `dict`에 암묵적으로 전달되어 관측값·추론·표시값을 구분하기 어렵다.
 - 단일 선택 결과와 재인코딩 JPEG 중심이어서 선택되지 않은 후보와 선택 근거를 나중에 재감사하기 어렵다.
 - `output_cN`, `jpeg_recovered_*`, `shift_experiments` 같은 이름만으로 입력·코드·옵션의 관계를 복원하기
@@ -125,7 +126,7 @@ fixture를 `work/`에 두지 않는다. 기본 위치는 명령을 실행한 현
 - 다만 장기 object model은 한 객체가 여러 source span을 가질 수 있도록 확장 가능해야 한다.
 
 초기 패키지 이전에서는 현재 파일을 일대일로 이동하고 내부 알고리즘을 동시에 재작성하지 않는다.
-특히 `resync.py`의 책임 분리는 별도 Task에서 수행한다.
+특히 `reconstruction/engine.py`의 책임 분리는 별도 Task에서 수행한다.
 
 ## 5. 목표 파이프라인
 
@@ -692,8 +693,8 @@ placement/gap, top-1/top-K 정확도를 측정한다. 정답 원본이 없는 �
 | T-0009 | 반복 placement와 evidence 평가 | AI enhancement |
 | T-0010 | preview와 thumbnail enhancement 분리 | enhancement를 source로 주장 |
 
-Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를 자동 확장하지 않는다. 현재 활성 Task는
-[`T-0001`](tasks/active/T-0001-project-identity-and-package-layout.md)이다.
+Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를 자동 확장하지 않는다. T-0001은 완료됐으며
+다음 계획 작업은 T-0002다. 새 활성 Task 문서는 실제 작업을 시작할 때 만든다.
 
 ## 15. 전환 중 지켜야 할 금지 사항
 
@@ -709,16 +710,11 @@ Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를
 
 ## 16. 현재 인수인계 상태
 
-- 현재 구현 이름과 import는 아직 `rawcarve`/`carver`다.
-- 현재 브랜치는 `main`이며 2026-08-12 확인 시 `origin/main`보다 1커밋 앞이다.
-- `output*`과 `shift_experiments`는 사용자가 저장소 밖으로 이동했다.
-- `usb.img`는 전환 문서 작성 시점에 저장소 작업 디렉터리에 남아 있었고 Git 비추적이다.
-- 전체 테스트 기준선은 2026-08-12 재검증한 243개 통과다.
-- 이 계획을 작성한 세션에서는 구현, commit, push, 3.5GB 전수 처리를 하지 않는다.
-- 2026-08-12에 `rawcarve` → `media-recovery-tool` rename을 `Move-Item`과 `Rename-Item`로 각각 한 번
-  시도했으나 Windows가 다른 프로세스의 사용 중 handle 때문에 모두 거부했다. 두 시도 뒤 원본 경로는
-  온전하고 대상 경로는 존재하지 않음을 확인했다. 파일별 이동이나 복사 우회는 하지 않았다.
-- 사용자는 현재 Codex 세션을 닫은 뒤 저장소 폴더 이름만 `media-recovery-tool`로 변경하고 다음 세션을
-  `C:\Users\Yunsung\Desktop\media-recovery-tool`에서 연다.
-- 다음 세션은 새 저장소 경로에서 `AGENTS.md`와 활성 T-0001을 읽은 뒤 구현을 시작한다. 사용자가 이미
-  rename을 완료했다면 위 실패 기록은 역사적 인수인계 정보로만 취급한다.
+- 2026-08-13에 저장소 경로가 `media-recovery-tool`로 바뀌었고 T-0001 package/CLI 이전을 완료했다.
+- 설치 대상은 `src/media_recovery`, 배포 이름은 `media-recovery-tool` 0.1.0, 단일 CLI는
+  `media-recovery`다.
+- 기존 `carver` 호환 계층, 루트 CLI wrapper와 `recover` alias는 두지 않았다.
+- 이전 전 243개와 이전 후 248개 테스트가 통과했고 합성 fixture의 정규화 snapshot이 일치했다.
+- `output*`과 `shift_experiments`는 사용자가 저장소 밖으로 이동한 상태를 유지한다.
+- `usb.img`는 Git 비추적 원본으로 보존하며 T-0001에서는 전수 처리하지 않았다.
+- 다음 계획 작업은 T-0002 문서 체계의 점진적 이관이다.

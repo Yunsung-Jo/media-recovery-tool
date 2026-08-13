@@ -1,5 +1,5 @@
 # tests/test_thumbref.py
-"""carver/thumbref.py — 썸네일 오라클 보정의 합성 이미지 회귀 테스트.
+"""thumbnail_guided.py — 썸네일 오라클 보정의 합성 이미지 회귀 테스트.
 
 실데이터 게이트 검증은 shift_experiments/refsdco/(PoC·전수 스캔)에서 수행했고,
 여기서는 합성 입력으로 계약을 고정한다: 무손상 identity, 순환 밀림 복원,
@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from carver.thumbref import (
+from media_recovery.enhancement.thumbnail_guided import (
     _rgb2ycc,
     _ycc2rgb,
     extract_thumbnail,

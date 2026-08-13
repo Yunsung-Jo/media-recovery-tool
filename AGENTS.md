@@ -5,9 +5,9 @@
 
 ## 현재 상태와 작업 정본
 
-이 저장소는 `rawcarve`에서 **Media Recovery Tool**로 전환 중이다. 손상된 디스크 이미지에서 JPEG·AVI를
-카빙하고 baseline JPEG를 구조적으로 복구한다. 현재 코드는 아직 이전 이름과 구조를 사용하지만 승인된
-목표는 `media-recovery-tool` 저장소와 `src/media_recovery` Python package다.
+이 저장소는 **Media Recovery Tool**로 전환 중이다. 손상된 디스크 이미지에서 JPEG·AVI를 카빙하고
+baseline JPEG를 구조적으로 복구한다. 저장소와 Python package 정체성은 각각
+`media-recovery-tool`과 `src/media_recovery`다.
 
 새 세션은 다음 순서로 문서를 읽는다.
 
@@ -16,9 +16,10 @@
 3. [`docs/tasks/active/`](docs/tasks/active/) — 현재 작업의 범위와 완료 조건
 4. 현재 구현을 이해할 때만 `docs/architecture.md`, `docs/specs/`, `docs/current-state.md`
 
-현재 활성 작업은
-[`T-0001 프로젝트 정체성과 Python 패키지 구조 전환`](docs/tasks/active/T-0001-project-identity-and-package-layout.md)이다.
-T-0001에서는 패키지와 CLI만 이전하고 복구 알고리즘·출력 계약·문서 체계를 함께 재설계하지 않는다.
+현재 활성 Task는 없다. 완료한
+[`T-0001 프로젝트 정체성과 Python 패키지 구조 전환`](docs/tasks/completed/2026/T-0001-project-identity-and-package-layout.md)은
+패키지와 CLI만 이전했으며 복구 알고리즘·출력 계약·문서 체계를 함께 재설계하지 않았다. 다음 계획 작업은
+T-0002이고, 실제 시작할 때 합의한 범위로 활성 Task 문서를 만든다.
 
 문서가 충돌하면 다음 우선순위를 사용한다.
 
@@ -30,10 +31,10 @@ T-0001에서는 패키지와 CLI만 이전하고 복구 알고리즘·출력 계
 
 ## 현재 구현
 
-- `carve.py`: 디스크 이미지에서 JPEG·AVI 추출
-- `recover.py`: 추출한 JPEG를 resync·헤더 복구로 복원
-- `thumbref.py`: EXIF thumbnail 기반 선택적 후처리
-- `carver/`: 스캐너, 추출기, JPEG 디코더, 복구 엔진
+- `media-recovery carve`: 디스크 이미지에서 JPEG·AVI 추출
+- `media-recovery reconstruct`: 추출한 JPEG를 resync·헤더 복구로 복원
+- `media-recovery enhance`: EXIF thumbnail 기반 선택적 후처리
+- `src/media_recovery/`: CLI, 스캐너, 추출기, JPEG 디코더, 복구 엔진
 - `tests/`: 회귀 테스트
 - `docs/`: 전환 계획, Task, 현재 상태, 동작 계약, 기술 결정, 포맷 메모
 
@@ -53,7 +54,8 @@ T-0001에서는 패키지와 CLI만 이전하고 복구 알고리즘·출력 계
 ## 구현과 검증
 
 - 로컬 실행은 프로젝트의 `.venv`를 우선 사용한다. 처음에는 `python -m venv .venv` 후 Windows는
-  `.venv\Scripts\python.exe`, POSIX는 `.venv/bin/python`으로 requirements와 requirements-dev를 설치한다.
+  `.venv\Scripts\python.exe -m pip install -e ".[dev]"`, POSIX는
+  `.venv/bin/python -m pip install -e ".[dev]"`로 설치한다.
 - 전체 테스트는 가상환경의 Python으로 `python -m pytest`를 실행한다. 공통 옵션과 임시 경로는
   `pytest.ini`가 관리한다.
 - 변경 범위에 가까운 테스트를 먼저 실행하고, 완료 전 가능하면 전체 테스트를 실행한다.
@@ -73,8 +75,7 @@ T-0001에서는 패키지와 CLI만 이전하고 복구 알고리즘·출력 계
 5. 검증된 방법만 본체에 구현한 뒤 같은 샘플로 재검증한다.
 6. 샘플 결과가 일치하면 사용자에게 알리고 필요한 경우에만 전수 검증한다.
 
-현재 CLI가 유지되는 동안 비교 실험과 품질 베이스라인의 `recover.py` 실행은 시간 제한 때문에 결과가
-달라지지 않도록 `--time-budget 0`을 사용한다. T-0001 완료 뒤에는 같은 의미의
+비교 실험과 품질 베이스라인의 복구 실행은 시간 제한 때문에 결과가 달라지지 않도록
 `media-recovery reconstruct --time-budget 0`을 사용한다. 일상적인 빠른 확인에는 이 규칙을 강제하지 않는다.
 
 ## Git

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from . import jpegdecode as jd
+from media_recovery.formats.jpeg import baseline_decoder as jd
 
 HDR_LIMIT = 1 << 20          # 헤더 후보 스캔 범위 상한
 FLOOR_CAP = 30               # probe 수락 바닥 상한 (min(30, (총MCU+1)//2))
@@ -288,7 +288,7 @@ def build_decoder(data: bytes, huff, qt, comps, scan, width, height, scan_start)
 
 def opening_probe(dec: jd.Decoder) -> int:
     """비트 0·MCU 0·DC 0에서 경계+rate 켠 clean run — 엔진과 동일 잣대."""
-    from . import resync as rs   # 지연 임포트(순환 회피)
+    from . import engine as rs   # 지연 임포트(순환 회피)
     total = dec.mcus_x * dec.mcus_y
     rate = max(350, int(dec.nbits / total * 4))
     W = int(min(900, total))
@@ -331,7 +331,7 @@ def reconstruct(data: bytes, recover_fn):
     """헤더 복구 대결 — 채택 시 (dec, fix_tags, rgb, stats, segments, gray_plain, undec_plain)
     반환, 전 후보 기각 시 None. recover_fn(dec) -> (rgb, stats, segments) — 엔진은 게이트 판정을
     겸해 여기서 1회만 실행되고 결과가 그대로 산출물이 된다(중복 실행 방지)."""
-    from . import resync as rs   # 지연 임포트(순환 회피)
+    from . import engine as rs   # 지연 임포트(순환 회피)
     h = jd.parse_header(data)
     soss = sos_candidates(data)
     sofs = sof_candidates(data)

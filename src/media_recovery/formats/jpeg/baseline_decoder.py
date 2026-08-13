@@ -1,6 +1,6 @@
 """비트 단위 제어가 가능한 baseline(SOF0) JPEG 디코더.
 
-resync 복구(`carver.resync`)를 위해 표준 디코더와 달리:
+resync 복구(`media_recovery.reconstruction.engine`)를 위해 표준 디코더와 달리:
  - 임의의 시작 비트위치 + DC 예측값에서 디코딩을 재개할 수 있고,
  - per-MCU 비트위치/DC예측을 기록하며,
  - 무효 Huffman 코드·계수 오버플로·비정상 비트레이트(디싱크)에서 정확히 멈춘다.
@@ -367,7 +367,7 @@ def idct_blocks(coef):
 
 class Decoder:
     """baseline 3-component JPEG 디코더. 헤더 파싱 + 룩업/그리드 준비 후
-    decode_full()(전체) 또는 carver.resync(세그먼트 단위)에서 사용한다."""
+    decode_full()(전체) 또는 reconstruction.engine(세그먼트 단위)에서 사용한다."""
 
     def __init__(self, data: bytes):
         self.data = data

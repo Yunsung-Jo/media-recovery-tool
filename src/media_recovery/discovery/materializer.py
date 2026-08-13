@@ -7,13 +7,13 @@ from typing import Sequence, TextIO
 
 from tqdm import tqdm
 
-from carver.extractors import (
+from media_recovery.formats.boundaries import (
     JPEG_MAX_FALLBACK_SIZE,
     _segment_semantics_valid,
     avi_end,
     jpeg_end,
 )
-from carver.models import FileHit
+from media_recovery.domain.objects import FileHit
 
 
 WRITE_CHUNK_SIZE = 8 * 1024 * 1024

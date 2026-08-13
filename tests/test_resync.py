@@ -1,4 +1,4 @@
-"""carver.resync 복구 엔진 검증."""
+"""reconstruction.engine 복구 엔진 검증."""
 import io
 from types import SimpleNamespace
 
@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from carver import jpegdecode as jd
-from carver import resync
+from media_recovery.formats.jpeg import baseline_decoder as jd
+from media_recovery.reconstruction import engine as resync
 
 
 def encode(img: np.ndarray, subsampling: int = 1, quality: int = 92) -> bytes:

@@ -126,7 +126,7 @@ depends_on: []
 
 | Task | 제목 |
 |---|---|
-| T-0001 | 프로젝트 정체성과 패키지 구조 |
+| [T-0001](completed/2026/T-0001-project-identity-and-package-layout.md) | 프로젝트 정체성과 패키지 구조 |
 | T-0002 | Current/Planned 문서 골격과 기존 지식의 점진적 이관 |
 | T-0003 | `work/`, stage run lineage·lifecycle과 JSONL artifact 계약 |
 | T-0004 | 포렌식 도메인 모델과 NPZ schema |
@@ -137,4 +137,4 @@ depends_on: []
 | T-0009 | placement 반복 평가 |
 | T-0010 | preview와 enhancement 분리 |
 
-현재 활성 Task는 [`T-0001`](active/T-0001-project-identity-and-package-layout.md)이다.
+현재 활성 Task는 없다. 다음 계획 작업은 T-0002다.

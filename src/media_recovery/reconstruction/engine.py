@@ -2,7 +2,7 @@
 
 손상된 baseline JPEG의 엔트로피 스트림은 바이트 손상으로 디싱크되어, 표준 디코더는
 손상 지점에서 회색(스캔 중단) 또는 깨진(어긋난 채 진행) 출력을 낸다. 이 엔진은
-`carver.jpegdecode`의 비트 단위 디코더로 디싱크 지점을 정확히 짚고, 각 지점에서:
+`media_recovery.formats.jpeg.baseline_decoder`의 비트 단위 디코더로 디싱크 지점을 정확히 짚고, 각 지점에서:
 
  1) 바이트 편집(치환/삭제/삽입): 단일바이트 손상을 복구(정렬 보존, 밀림 없음).
  2) resync-skip: 재개 비트위치를 넓게 탐색해 다중바이트 손상/구멍을 건너뜀. db≈0인
@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 from numba import njit
 
-from carver import jpegdecode as jd
+from media_recovery.formats.jpeg import baseline_decoder as jd
 
 DC_BOUND, AC_BOUND = 1400, 6000   # 계수 dequant 오버플로 경계(디싱크 탐지)
 _ZZ = jd.ZIGZAG
@@ -3212,13 +3212,13 @@ def recover_file(src_path: Path, out_dir: Path, quality: int = 95,
     action: RECOVERED | HEADER_RECOVERED | CLEAN | FAILED | SKIP_UNDECODABLE.
     FAILED = 편집·재동기가 한 번도 수락되지 않고 hole로 종료(무행동) — 재인코딩
     회색본 대신 원본 바이트를 보존한다(입력보다 나쁜 복구본 저장 방지).
-    헤더(DHT/DQT/SOF/SOS) 손상 파일은 `carver.headerfix`가 헤더를 재구성해 복구를
+    헤더(DHT/DQT/SOF/SOS) 손상 파일은 `reconstruction.header_hypotheses`가 헤더를 재구성해 복구를
     시도한다 — 채택 시 `HEADER_RECOVERED`(원본 바이트가 디코드 불가하므로 렌더가
     유일 산출)로 `header_recovered/`에 저장하고 `header_fix`에 교체 세그먼트를 기록한다.
     어느 변형도 게이트를 통과 못하면 SKIP. 모든 경우 out_path는 실제 경로다(None 반환 없음).
-    time_budget/resync_near/resync_full로 철저함↔속도 조절(→ recover 참조).
+    time_budget/resync_near/resync_full로 철저함↔속도 조절(→ reconstruct CLI 참조).
     """
-    from carver import headerfix   # 지연 임포트(순환 회피)
+    from media_recovery.reconstruction import header_hypotheses as headerfix
     data = src_path.read_bytes()
     # Header candidates are selected with the historical unshifted render so
     # spatial post-processing cannot change the structural gate.  The chosen

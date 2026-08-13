@@ -1,7 +1,8 @@
-# rawcarve
+# Media Recovery Tool
 
-파일 시스템 정보가 사라진 디스크 이미지에서 JPEG·AVI를 찾아 추출하고, 손상된 JPEG를 가능한 범위까지
-복구하는 Python 도구다. 원본 이미지는 읽기 전용으로 열며 결과는 별도 출력 디렉터리에 저장한다.
+손상된 디스크 이미지에서 JPEG와 AVI를 카빙하고, baseline JPEG를 구조적으로 복구하는 Python 도구다.
+원본 이미지는 읽기 전용으로 열며 결과는 별도 출력 디렉터리에 저장한다. AVI는 현재 경계를 계산해
+추출할 뿐 영상 스트림이나 인덱스를 복구하지 않는다.
 
 ## 요구 사항
 
@@ -13,22 +14,36 @@
 python -m venv .venv
 ```
 
+가상환경을 활성화한다.
+
 ```powershell
-# Windows
-.venv\Scripts\python.exe -m pip install -r requirements.txt
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
 ```
 
 ```bash
 # Linux / macOS
-.venv/bin/python -m pip install -r requirements.txt
+source .venv/bin/activate
 ```
 
-이후 예시에서는 가상환경을 활성화했거나 `python`을 위 가상환경의 실행 파일로 바꿔 사용한다고 가정한다.
+그다음 package를 editable mode로 설치한다.
+
+```bash
+python -m pip install -e .
+```
+
+개발 환경에는 테스트 의존성까지 설치한다.
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+이후 예시에서는 활성화한 가상환경의 `media-recovery` console script를 사용한다고 가정한다.
 
 ## 1. 디스크 이미지 카빙
 
 ```bash
-python carve.py <디스크 이미지> [옵션]
+media-recovery carve <디스크 이미지> [옵션]
 ```
 
 | 옵션 | 설명 | 기본값 |
@@ -41,8 +56,8 @@ python carve.py <디스크 이미지> [옵션]
 예시:
 
 ```bash
-python carve.py usb.img -o output
-python carve.py usb.img -o output --max-jpeg-size 20 --max-avi-size 200 --save-thumbnails
+media-recovery carve usb.img -o output
+media-recovery carve usb.img -o output --max-jpeg-size 20 --max-avi-size 200 --save-thumbnails
 ```
 
 출력 구조:
@@ -68,7 +83,7 @@ output/
 카빙한 JPEG를 추가로 복구하려면 `jpeg/` 디렉터리를 입력한다.
 
 ```bash
-python recover.py <JPEG 디렉터리> [옵션]
+media-recovery reconstruct <JPEG 디렉터리> [옵션]
 ```
 
 | 옵션 | 설명 | 기본값 |
@@ -82,9 +97,9 @@ python recover.py <JPEG 디렉터리> [옵션]
 예시:
 
 ```bash
-python recover.py output/jpeg
-python recover.py output/jpeg --fast
-python recover.py output/jpeg -o output/jpeg_recovered --time-budget 0
+media-recovery reconstruct output/jpeg
+media-recovery reconstruct output/jpeg --fast
+media-recovery reconstruct output/jpeg -o output/jpeg_recovered --time-budget 0
 ```
 
 입력 디렉터리 최상위의 소문자 확장자 `*.jpg`만 처리한다. `--fast`는 처리 시간을 줄이는 대신 먼
@@ -100,7 +115,7 @@ python recover.py output/jpeg -o output/jpeg_recovered --time-budget 0
 추가 보정한다. 썸네일이 없거나 근거가 부족한 파일은 바이트 그대로 복사된다.
 
 ```bash
-python thumbref.py <카빙 원본 디렉터리> <recover 출력 디렉터리> [옵션]
+media-recovery enhance <카빙 원본 디렉터리> <reconstruct 출력 디렉터리> [옵션]
 ```
 
 | 옵션 | 설명 | 기본값 |
@@ -111,7 +126,7 @@ python thumbref.py <카빙 원본 디렉터리> <recover 출력 디렉터리> [�
 예시:
 
 ```bash
-python thumbref.py output/jpeg output/jpeg_recovered -j 6
+media-recovery enhance output/jpeg output/jpeg_recovered -j 6
 ```
 
 출력 루트의 `report_thumbref.csv`에 파일별 판정(corrected/identity/rollback/skip_*)과 추정
@@ -155,7 +170,7 @@ python thumbref.py output/jpeg output/jpeg_recovered -j 6
 ## 개발
 
 ```bash
-python -m pip install -r requirements-dev.txt
+python -m pip install -e ".[dev]"
 python -m pytest
 ```
 

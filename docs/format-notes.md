@@ -16,7 +16,7 @@
   `FF D8`을 payload로 덮으면 그 길이를 경계 근거로 신뢰하지 않는다.
 - SOS 이후 엔트로피에서 `FF 00`은 데이터 바이트 `FF`, `FF D0`~`FF D7`은 restart marker,
   `FF FF`는 fill이다. 이들을 일반 마커나 파일 경계로 취급하지 않는다.
-- 손상으로 엔트로피 안에 가짜 `FF D9`가 생길 수 있다. `carver/extractors.py`는 EOI 직후에도 엔트로피가
+- 손상으로 엔트로피 안에 가짜 `FF D9`가 생길 수 있다. `media_recovery/formats/boundaries.py`는 EOI 직후에도 엔트로피가
   이어지는지 확인해 조기 종료를 피한다. stuffing 비율은 FF 표본이 충분할 때만 강한 반증이며, 희소한
   `FF 00`이 섞인 zero padding을 엔트로피로 단정하면 실제 EOI를 놓친다
   ([ADR 0002](adr/0002-carve-eoi-validation.md)).
@@ -43,7 +43,8 @@
 
 ## 헤더 복구의 코퍼스 사실
 
-- 코퍼스의 지배적 DHT는 ITU-T T.81 Annex-K 전형 4테이블과 일치하며 `carver/headerfix.py`의
+- 코퍼스의 지배적 DHT는 ITU-T T.81 Annex-K 전형 4테이블과 일치하며
+  `media_recovery/reconstruction/header_hypotheses.py`의
   `DONOR_HUFF`에 고정돼 있다. 이는 보편적인 JPEG 요구사항이 아니라 이 코퍼스에서 검증한 복구 후보이다.
 - DHT와 달리 DQT는 품질 설정별로 달라 파일 간 전역 공유 자원으로 취급하지 않는다.
 - 도너 DHT, DQT 스무딩, SOF/SOS 재구성은 단독으로 신뢰하지 않는다. probe 바닥·소비율·엔진 결과·자체

@@ -1,6 +1,6 @@
-# carve.py 동작 계약
+# `media-recovery carve` 동작 계약
 
-이 문서는 현재 `carve.py`의 사용자 관점 동작과 카빙 경계 계약을 설명한다.
+이 문서는 현재 `media-recovery carve`의 사용자 관점 동작과 카빙 경계 계약을 설명한다.
 
 ## 개요
 
@@ -38,7 +38,7 @@
 
 ### 1. 시작 후보 탐색
 
-`carver/scanner.py`는 다음 후보를 찾아 오프셋 순 `FileHit`으로 반환한다.
+`media_recovery/discovery/scanner.py`는 다음 후보를 찾아 오프셋 순 `FileHit`으로 반환한다.
 
 - 정확 JPEG: `FF D8 FF` 뒤 첫 길이형 marker의 종류와 선언 범위·sane 길이를 확인한다. APPn/COM으로
   시작한 후보는 뒤 연속 의미 walk가 실패해도 복구 대상으로 유지하고, walk가 성공하면 SOS payload
@@ -59,7 +59,7 @@ CLI의 `시작 후보 발견` 수는 중첩·내장 후보까지 포함하므로
 
 ### 2. JPEG 경계
 
-`carver/extractors.py::jpeg_end`는 marker 상태와 entropy를 함께 걷는다.
+`media_recovery/formats/boundaries.py::jpeg_end`는 marker 상태와 entropy를 함께 걷는다.
 
 - APP 없이 시작하는 JPEG, sequential/progressive 다중 scan, scan 사이 DHT/DQT/DAC/DNL/DRI/APP/COM/SOS를
   처리한다. 길이형 세그먼트 payload의 `FF D8`, `FF D9`, `RIFF...AVI `는 파일 경계가 아니다.
@@ -89,7 +89,7 @@ fallback은 `movi/rec`의 `NNdc`·`NNdb` 등 stream payload 안 JPEG를 외부 �
 
 ### 4. 중첩 분류와 저장
 
-`carver/carving.py::process`는 동일 type/offset 후보를 근거가 강한 하나로 합치고 정렬한다. 성공한 마지막
+`media_recovery/discovery/materializer.py::process`는 동일 type/offset 후보를 근거가 강한 하나로 합치고 정렬한다. 성공한 마지막
 최상위 범위를 활성 범위로 유지하므로 일반 포함 판정은 O(1)이다.
 
 - 유효한 pre-SOS 길이형 세그먼트 payload 안의 hit은 파일 종류와 source에 관계없이 건너뛴다.

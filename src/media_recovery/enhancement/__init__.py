@@ -1,0 +1,1 @@
+"""Optional thumbnail-guided enhancement."""

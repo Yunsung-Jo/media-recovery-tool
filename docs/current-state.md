@@ -5,11 +5,24 @@
 > 아니라 역사적 dataset/run을 가리키는 기존 명칭이다. 자료는 외부에 보존되어 있으며 새 case/run ID로의
 > 이관은 T-0003 이후에 다룬다. 외부 위치를 이 문서의 영구 계약으로 기록하지 않는다.
 
-- **코드 테스트:** 2026-08-12, 243개 통과(thumbref 10개 포함)
-- **역사적 full-recover 기준선:** 2026-07-05, `usb.img` 재카빙 후 `recover.py --time-budget 0`
+- **프로젝트·패키지:** 2026-08-13, `media-recovery-tool` 0.1.0과
+  `src/media_recovery` layout, `media-recovery` 통합 CLI로 이전
+- **코드 테스트:** 2026-08-13, 이전 전 243개와 이전 후 248개 통과(통합 CLI smoke 5개 추가)
+- **역사적 full-recover 기준선:** 2026-07-05, `usb.img` 재카빙 후 당시
+  `recover.py --time-budget 0`(현재 `media-recovery reconstruct --time-budget 0`)
 - **역사적 기준 산출물:** `output_c2/` 계열. 출력 디렉터리와 `shift_experiments/` 실험 기록은 Git 비추적이다
 - **현행 카빙 감사:** 2026-07-13, `usb.img` 읽기 전용 dry-run(출력 저장·full recover 미실행)
 - **현행 카빙·복구 입력:** 2026-07-21, `output_c3/jpeg` 970개와 보정 전 `jpeg_recovered`
+
+## 패키지 전환 기준선
+
+T-0001 이전 전체 테스트 243개와 이전 후 248개가 같은 Python 3.12.13, Pillow 12.3.0, NumPy 2.4.6,
+Numba 0.66.0 환경에서 통과했다. 개인 자료가 아닌 합성 JPEG·Exif thumbnail·AVI fixture로 기존 CLI와
+새 통합 CLI를 비교했으며, 파일 집합·JPEG/AVI SHA-256·결과 분류와 실행시간을 제외한 CSV 안정 필드는
+모두 같았다. 정규화 snapshot SHA-256은 이전과 이후 모두
+`BA0D846972DB205C57A1250D596A1D40481125CD0A40EF71389295D2F7506C18`이다. Windows spawn 경로의
+`media-recovery reconstruct -j 2`와 `media-recovery enhance -j 2`도 이 fixture에서 통과했다.
+`usb.img` 전수 처리는 패키지 이전 검증 범위에서 제외했다.
 
 ## 안정적으로 동작하는 범위
 
@@ -19,7 +32,8 @@
 - DHT/DQT/SOF/SOS 손상 헤더의 구조 기반 복구
 - 가짜 EOI, 손상 세그먼트 길이, 뒤따르는 AVI 때문에 발생하던 과다 카빙 방지
 - 복구 결과 6종 분류와 `report.csv` 지표 출력
-- EXIF 썸네일 참조 오라클로 잔여 순환 밀림·색 캐스트 밴드 후처리 보정(`thumbref.py`, ADR 0012)
+- EXIF 썸네일 참조 오라클로 잔여 순환 밀림·색 캐스트 밴드 후처리 보정
+  (`media-recovery enhance`, ADR 0012)
 
 ## 역사적 전체 복구 기준선
 
@@ -184,7 +198,8 @@ winsorize 게이트로 추가 보정했다. 각각 2·6·4밴드가 정렬됐고
 FAT32는 런타임 탐지에 쓰지 않고 독립 감사에만 사용했다. strict archive JPG 엔트리 677개 중 명확한
 149개 일치로 4,096바이트 cluster와 data start `0x011FF000`을 역검증했다. 손상 시작
 `0xC82F0000`과 `0xC8ABD000`은 모두 4 KiB 정렬이고 `scan_start=offset+0x26F`이며, 각각 FAT 선언 크기
-21,938바이트·19,676바이트가 EOI exclusive 크기와 정확히 일치했다. 그러나 현행 `recover.py` 자동 판정은
+21,938바이트·19,676바이트가 EOI exclusive 크기와 정확히 일치했다. 그러나 현행
+`media-recovery reconstruct` 자동 판정은
 둘 다 `SKIP_UNDECODABLE`이므로 “사용 가능한 사진 2개 복구”로 해석하지 않는다.
 
 exact RIFF 시작은 45개였고 그중 `AVI ` form은 44개였다. AVI 44개는 모두 `hdrl`/`avih` 구조를 다시
@@ -215,7 +230,7 @@ entropy walk를 사용해 전체 시간은 줄었다. 밀집 `FF 00`과 반복 i
 1. **v8 전수 회귀** — 고난도·구조·정상 고정 표본은 통과했지만 최신 전역 행 보정으로 `output_c3/jpeg`
    970개를 아직 다시 처리하지 않았다. 다음 비용 큰 검증은 기존 v7 전수 결과와 action·헤더 선택·정상
    identity·손실 예산을 함께 비교해야 한다.
-2. **색 캐스트 보정** — 썸네일 보유 파일은 `thumbref.py`가 밴드 오프셋을 보정한다(ADR 0012).
+2. **색 캐스트 보정** — 썸네일 보유 파일은 `media-recovery enhance`가 밴드 오프셋을 보정한다(ADR 0012).
    잔여는 (a) 썸네일 없는 파일과 (b) 세그먼트가 행 중간에서 갈리는 x방향 색 변화(행-상수 모델의
    사각지대)다. (b)의 세그먼트 단위 보정은 2026-07-24에 세 방식으로 시도했으나 모두 실패했다
    (상세는 로컬 실험 기록). 색 캐스트 경계가 resync 세그먼트 경계와 정확히
@@ -223,7 +238,7 @@ entropy walk를 사용해 전체 시간은 줄었다. 밀집 `FF 00`과 반복 i
    후 좌표가 모두 필요하고, 이는 밀림 재배치맵 노출(ADR 0011 엔진 수정)을 요구해 보류했다.
 3. **밀림 보정 잔여 범위** — MCU 0의 실제 재동기 근거가 없으면 최상단 복구 밴드는 이동하지 않고,
    `phase_cuts=[]`이면 공간 보정을 전부 생략한다. 이 보수적 계약 밖의 숨은 밀림은 썸네일 보유
-   파일에 한해 `thumbref.py`가 검출·보정하며(무변경·undec 0 파일에서도 실측), 광범위 재동기
+   파일에 한해 `media-recovery enhance`가 검출·보정하며(무변경·undec 0 파일에서도 실측), 광범위 재동기
    파일은 행 통째 roll의 표현력 한계로 엔진 MCU 도메인 통합이 필요하다.
 4. **단편화 탐색** — 데이터 소진 파일이 `usb.img`의 다른 위치에 이어지는지 찾는 연구성 과제다. 원본 전체
    탐색 비용이 크고 후보 진위 신호가 아직 확립되지 않았다.
@@ -257,7 +272,9 @@ entropy walk를 사용해 전체 시간은 줄었다. 밀집 `FF 00`과 반복 i
 ## 빠른 시작
 
 ```powershell
+.venv\Scripts\python.exe -m pip install -e ".[dev]"
 .venv\Scripts\python.exe -m pytest
+.venv\Scripts\media-recovery.exe --help
 ```
 
 POSIX 환경에서는 `.venv/bin/python -m pytest`를 사용한다.

@@ -1,8 +1,8 @@
 import mmap
 import struct
 
-from carver.extractors import jpeg_end
-from carver.models import FileHit
+from media_recovery.domain.objects import FileHit
+from media_recovery.formats.boundaries import jpeg_end
 
 _JPEG_SIG = b'\xff\xd8\xff'
 _RIFF_SIG = b'RIFF'

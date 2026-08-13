@@ -1,11 +1,11 @@
-# recover.py 동작 계약
+# `media-recovery reconstruct` 동작 계약
 
-이 문서는 현재 `recover.py`의 사용자 관점 동작과 복구 엔진의 유지해야 할 불변 조건을 설명한다.
+이 문서는 현재 `media-recovery reconstruct`의 사용자 관점 동작과 복구 엔진의 유지해야 할 불변 조건을 설명한다.
 설계 선택의 근거는 관련 ADR, 최신 기준선과 남은 작업은 [현재 상태](../current-state.md)를 본다.
 
 ## 개요
 
-`carve.py`가 추출한 손상 JPEG를 비트 단위 디코더, 바이트 편집, 재동기, 헤더 재구성으로 복구한다.
+`media-recovery carve`가 추출한 손상 JPEG를 비트 단위 디코더, 바이트 편집, 재동기, 헤더 재구성으로 복구한다.
 복구할 근거가 없는 영역은 생성하지 않고 회색으로 남기며, 파일별 결과와 지표를 `report.csv`에 기록한다.
 복구 엔진은 3컴포넌트 baseline JPEG를 대상으로 한다.
 
@@ -77,7 +77,7 @@ global-only 보정도 적용 파일 수에서 빠지지 않는다. `ins`와 `del
 ## 처리 흐름
 
 1. 입력 디렉터리의 `*.jpg`를 이름순으로 수집한다.
-2. `carver/jpegdecode.py::Decoder`로 헤더와 엔트로피 스트림을 구성한다.
+2. `media_recovery/formats/jpeg/baseline_decoder.py::Decoder`로 헤더와 엔트로피 스트림을 구성한다.
 3. 구성이 실패하면 헤더 재구성을 시도하고, 성공하면 `HEADER_RECOVERED`, 실패하면
    `SKIP_UNDECODABLE`로 끝낸다.
 4. 구성이 되면 일반 복구를 실행한다. 첫 MCU부터 clean run이 짧아 헤더 손상이 의심되는 파일은 헤더
@@ -202,7 +202,7 @@ MCU당 평균의 4배를 넘는 비트 소비를 만나면 정지한다. 이 위
 
 ## 사용하는 모듈
 
-- `carver/jpegdecode.py` — baseline JPEG 헤더·엔트로피 디코더
-- `carver/resync.py` — 바이트 편집, 재동기, 분류와 저장
-- `carver/headerfix.py` — 헤더 후보 재구성과 구조 게이트
+- `media_recovery/formats/jpeg/baseline_decoder.py` — baseline JPEG 헤더·엔트로피 디코더
+- `media_recovery/reconstruction/engine.py` — 바이트 편집, 재동기, 분류와 저장
+- `media_recovery/reconstruction/header_hypotheses.py` — 헤더 후보 재구성과 구조 게이트
 - [포맷 메모](../format-notes.md) — 구현이 전제하는 JPEG 사실

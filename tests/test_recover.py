@@ -1,8 +1,8 @@
-"""recover.py 워커 동작 검증."""
+"""reconstruct CLI 워커 동작 검증."""
 import csv
 from pathlib import Path
 
-import recover
+from media_recovery.cli import reconstruct
 
 
 def test_work_error_copies_original(tmp_path, monkeypatch):
@@ -14,9 +14,9 @@ def test_work_error_copies_original(tmp_path, monkeypatch):
     def boom(*args, **kwargs):
         raise RuntimeError('decode blew up')
 
-    monkeypatch.setattr(recover, 'recover_file', boom)
+    monkeypatch.setattr(reconstruct, 'recover_file', boom)
 
-    name, action, info, err = recover._work(
+    name, action, info, err = reconstruct._work(
         src, tmp_path, quality=95, time_budget=None, near=300000, full=True)
 
     assert action == 'ERROR'
@@ -58,16 +58,16 @@ def test_report_counts_global_only_spatial_correction(
             pass
 
     monkeypatch.setattr(
-        recover, '_work',
+        reconstruct, '_work',
         lambda path, *_args, **_kwargs: (
             path.name, 'RECOVERED', info, None))
-    monkeypatch.setattr(recover, 'tqdm', QuietBar)
-    monkeypatch.setattr(recover.sys, 'argv', [
-        'recover.py', str(in_dir), '-o', str(out_dir),
+    monkeypatch.setattr(reconstruct, 'tqdm', QuietBar)
+    monkeypatch.setattr(reconstruct.sys, 'argv', [
+        'media-recovery reconstruct', str(in_dir), '-o', str(out_dir),
         '-j', '1', '--time-budget', '0',
     ])
 
-    recover.main()
+    reconstruct.main()
 
     with (out_dir / 'report.csv').open(
             newline='', encoding='utf-8') as report_file:

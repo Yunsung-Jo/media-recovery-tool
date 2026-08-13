@@ -3,21 +3,21 @@ import mmap
 import sys
 from pathlib import Path
 
-from carver.carving import is_in_range, make_output_dirs, process
-from carver.extractors import (
+from media_recovery.discovery.materializer import is_in_range, make_output_dirs, process
+from media_recovery.formats.boundaries import (
     JPEG_MAX_FALLBACK_SIZE,
     MAX_AVI_SIZE_DEFAULT,
     avi_end,
     jpeg_end,
 )
-from carver.models import FileHit
-from carver.scanner import find_all_hits
+from media_recovery.domain.objects import FileHit
+from media_recovery.discovery.scanner import find_all_hits
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description='손상된 디스크 이미지에서 JPEG/AVI 파일을 추출합니다.'
-    )
+DESCRIPTION = '손상된 디스크 이미지에서 JPEG/AVI 파일을 추출합니다.'
+
+
+def configure_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('image', help='디스크 이미지 파일 경로')
     parser.add_argument('-o', '--output', default='output', help='출력 디렉터리 (기본: output)')
     parser.add_argument('--max-avi-size', type=int,
@@ -35,7 +35,9 @@ def main() -> None:
         action='store_true',
         help='Exif APP1 내부 JPEG도 jpeg_thumbnails/에 저장',
     )
-    args = parser.parse_args()
+
+
+def run(args: argparse.Namespace) -> None:
 
     image_path = Path(args.image)
     output_dir = Path(args.output)
@@ -78,6 +80,12 @@ def main() -> None:
         f"Thumbnails: {result['thumbnails']}, "
         f"Errors: {result['errors']}"
     )
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
+    configure_parser(parser)
+    run(parser.parse_args(argv))
 
 
 if __name__ == '__main__':

@@ -4,8 +4,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from carver.scanner import find_all_hits
-from carver.models import FileHit
+from media_recovery.discovery.scanner import find_all_hits
+from media_recovery.domain.objects import FileHit
 
 
 # ── 테스트 헬퍼 ──────────────────────────────────────────────

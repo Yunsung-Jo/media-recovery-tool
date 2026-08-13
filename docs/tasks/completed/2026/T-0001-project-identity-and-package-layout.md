@@ -1,7 +1,7 @@
 ---
 id: T-0001
 title: 프로젝트 정체성과 Python 패키지 구조 전환
-status: ready
+status: completed
 type: refactor
 depends_on: []
 ---
@@ -11,10 +11,10 @@ depends_on: []
 ## 시작 전 필독
 
 1. 저장소 루트의 `AGENTS.md`
-2. [`transition-plan.md`](../../transition-plan.md)
-3. 현재 구조를 설명하는 [`architecture.md`](../../architecture.md)
-4. 현재 CLI 계약인 [`0001-carve.md`](../../specs/0001-carve.md)와
-   [`0002-recover.md`](../../specs/0002-recover.md)
+2. [`transition-plan.md`](../../../transition-plan.md)
+3. 현재 구조를 설명하는 [`architecture.md`](../../../architecture.md)
+4. 현재 CLI 계약인 [`0001-carve.md`](../../../specs/0001-carve.md)와
+   [`0002-recover.md`](../../../specs/0002-recover.md)
 
 `transition-plan.md`는 목표 상태이고 `architecture.md`와 specs는 아직 현재 구현을 설명한다. 둘을 섞어서
 이미 구현된 것으로 간주하지 않는다.
@@ -188,7 +188,44 @@ T-0001은 모듈을 새 책임 영역에 배치하되 한 기존 파일을 여�
 
 ## 결과
 
-아직 시작하지 않았다. 다음 세션은 `status: in_progress`로 변경한 뒤 구현한다.
+2026-08-13에 완료했다.
+
+- 저장소 경로와 `.venv`의 `sys.executable`·`sys.prefix`·pip 경로가 모두
+  `C:\Users\Yunsung\Desktop\media-recovery-tool` 아래를 가리킴을 확인했다.
+- 같은 환경(Python 3.12.13, Pillow 12.3.0, NumPy 2.4.6, Numba 0.66.0, pytest 9.1.1,
+  tqdm 4.68.4)에서 이전 전 전체 테스트 `243 passed`를 확인했다.
+- `pyproject.toml`을 배포·dependency 정본으로 추가하고 `media-recovery-tool` 0.1.0,
+  `requires-python >=3.10`, setuptools build backend, `media-recovery` console script와 `dev` extra를
+  정의했다. `python -m pip install -e .`와 `python -m pip install -e ".[dev]"`가 모두 성공했다.
+- 기존 루트 CLI 세 개와 `carver` 구현을 계획표대로 `src/media_recovery` 아래로 일대일 이전했다.
+  통합 CLI는 `carve`, `reconstruct`, `enhance`만 제공하며 `recover` alias와 compatibility wrapper는 없다.
+- 기존 루트 `carve.py`, `recover.py`, `thumbref.py`, `carver/`, `requirements.txt`,
+  `requirements-dev.txt`를 제거했다. 코드와 테스트의 `from carver`·`import carver` 검색 결과는 0이고
+  설치 환경에서도 `carver` spec은 없다.
+- `README.md`, `AGENTS.md`, 현재 architecture/spec/format/status 문서의 설치법·명령·현재 경로를
+  새 package와 CLI에 맞췄다. 과거 실행을 식별하는 legacy 명령은 역사 기록으로만 유지했다.
+- 통합 CLI smoke 5개를 추가했고 최종 전체 테스트는 `248 passed in 18.25s`였다. 기존 테스트 삭제,
+  skip 또는 xfail은 없었다.
+
+### 합성 fixture 동등성
+
+개인 자료가 아닌 고정 합성 fixture에 640×480 baseline JPEG, Exif 내부 JPEG와 최소 AVI를 넣었다.
+이전 CLI와 설치된 새 CLI가 각각 JPEG 1개, AVI 1개, 내부 JPEG 2개를 같은 이름으로 카빙했고,
+reconstruct는 `CLEAN`, enhance는 `skip_reg`로 분류했다.
+
+- 비교 대상: 전체 파일 집합 9개, JPEG/AVI 산출물 6개 SHA-256, `report.csv`와
+  `report_thumbref.csv`의 field 목록·record 수·`filename` 정렬 행
+- 제외 필드: `recover_sec`, `secs`
+- 이전/이후 정규화 snapshot SHA-256:
+  `BA0D846972DB205C57A1250D596A1D40481125CD0A40EF71389295D2F7506C18`
+- Windows spawn: `media-recovery reconstruct --time-budget 0 -j 2`와
+  `media-recovery enhance -j 2` 성공
+
+`media-recovery --help`와 세 subcommand의 `--help`, `python -m media_recovery --help`가 모두
+exit code 0이었다. `media-recovery recover --help`는 의도대로 invalid choice와 exit code 2를 반환했다.
+
+3.5GB `usb.img` 전수 처리는 Task 비범위이므로 실행하지 않았다. 원본 `*.img`와 외부 legacy 결과는
+수정·삭제하지 않았고, 구현 완료 결과를 commit과 push 전에 먼저 보고했다.
 
 ## 지속 문서 반영
 
@@ -201,4 +238,4 @@ ADR/spec의 전면 이관은 T-0002에서 수행한다.
 
 ## 후속 작업
 
-T-0002부터의 순서는 [`transition-plan.md`](../../transition-plan.md)의 Task 로드맵을 따른다.
+T-0002부터의 순서는 [`transition-plan.md`](../../../transition-plan.md)의 Task 로드맵을 따른다.

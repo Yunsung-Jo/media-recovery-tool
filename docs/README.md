@@ -9,8 +9,8 @@
 | 2 | [`tasks/active/`](tasks/active/) | 지금 무엇을 어디까지 변경해야 하는가? | 활성 작업 계약 |
 | 3 | [`tasks/README.md`](tasks/README.md) | Task를 어떻게 작성하고 완료하는가? | 작업 운영 규칙 |
 | 4 | [`current-state.md`](current-state.md) | 현재 구현은 어디까지 검증됐는가? | 현재 기준선 |
-| 5 | [`architecture.md`](architecture.md) | 현재 코드는 어떻게 나뉘고 흐르는가? | 전환 전 현재 구조 |
-| 6 | [`0001-carve.md`](specs/0001-carve.md), [`0002-recover.md`](specs/0002-recover.md) | 현재 명령과 결과가 무엇을 보장하는가? | 전환 전 현재 기능 명세 |
+| 5 | [`architecture.md`](architecture.md) | 현재 코드는 어떻게 나뉘고 흐르는가? | 현재 구조 |
+| 6 | [`0001-carve.md`](specs/0001-carve.md), [`0002-recover.md`](specs/0002-recover.md) | 현재 명령과 결과가 무엇을 보장하는가? | 현재 기능 명세 |
 | 역사 확인 | [`adr/README.md`](adr/README.md) | 기존 선택은 어떤 맥락에서 생겼는가? | 이관 전 역사 자료 |
 | 필요 시 | [`format-notes.md`](format-notes.md) | JPEG·AVI 처리에서 어떤 포맷 사실을 전제하는가? | 구현 참고 |
 

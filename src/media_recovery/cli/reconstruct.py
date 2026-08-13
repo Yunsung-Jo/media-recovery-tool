@@ -1,4 +1,4 @@
-# recover.py
+# media_recovery/cli/reconstruct.py
 from __future__ import annotations
 import argparse
 import csv
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from carver.resync import recover_file
+from media_recovery.reconstruction.engine import recover_file
 
 
 def _work(path: Path, out_dir: Path, quality: int, time_budget, near: int, full: bool):
@@ -30,10 +30,10 @@ def _work(path: Path, out_dir: Path, quality: int, time_budget, near: int, full:
         return path.name, 'ERROR', {}, str(e)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description='rawcarve가 추출한 손상 JPEG를 resync 엔진으로 복구합니다.'
-    )
+DESCRIPTION = 'Media Recovery Tool이 추출한 손상 JPEG를 resync 엔진으로 복구합니다.'
+
+
+def configure_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('input', help='입력 디렉토리 (예: output/jpeg/)')
     parser.add_argument('-o', '--output', default=None,
                         help='출력 디렉토리 (기본: <input>_recovered)')
@@ -45,7 +45,9 @@ def main() -> None:
                         help='빠른 모드(부분 복구 감수). 기본은 철저 모드(복구율↑, 느림)')
     parser.add_argument('--time-budget', type=float, default=None, metavar='SEC',
                         help='복구 탐색 1회당 시간 상한(초). 0=무제한. 기본: 철저 90, --fast 20')
-    args = parser.parse_args()
+
+
+def run(args: argparse.Namespace) -> None:
 
     # 철저(기본)↔빠른(--fast) 프리셋
     if args.fast:
@@ -201,6 +203,12 @@ def main() -> None:
             mean_ua = sum(r[3] for r in grp) / len(grp)
             n_bad = sum(1 for r in grp if r[3] > 0.15)
             print(f'  {label:>8}: {len(grp):4d}개, undec_after 평균 {mean_ua:.3f}, >0.15 {n_bad}개')
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
+    configure_parser(parser)
+    run(parser.parse_args(argv))
 
 
 if __name__ == '__main__':

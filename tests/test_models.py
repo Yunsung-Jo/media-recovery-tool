@@ -1,4 +1,4 @@
-from carver.models import FileHit
+from media_recovery.domain.objects import FileHit
 
 
 def test_filehit_jpeg():

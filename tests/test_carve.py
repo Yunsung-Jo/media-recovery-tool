@@ -4,11 +4,10 @@ from io import StringIO
 
 import pytest
 
-import carve as carve_cli
-from carver import carving
-from carver.carving import write_range
-from carver.models import FileHit
-from carve import process, is_in_range, make_output_dirs
+from media_recovery.cli import carve as carve_cli
+from media_recovery.discovery import materializer as carving
+from media_recovery.discovery.materializer import is_in_range, make_output_dirs, process, write_range
+from media_recovery.domain.objects import FileHit
 
 
 # ── 테스트 헬퍼 ──────────────────────────────────────────────
@@ -491,7 +490,7 @@ def test_cli_forwards_jpeg_and_avi_size_limits(tmp_path, monkeypatch):
     monkeypatch.setattr(
         'sys.argv',
         [
-            'carve.py',
+            'media-recovery carve',
             str(image_path),
             '-o',
             str(output_path),
@@ -515,7 +514,7 @@ def test_cli_forwards_jpeg_and_avi_size_limits(tmp_path, monkeypatch):
 def test_cli_rejects_nonpositive_size_limit(tmp_path, monkeypatch, option):
     image_path = tmp_path / 'disk.img'
     image_path.write_bytes(MINIMAL_JPEG)
-    monkeypatch.setattr('sys.argv', ['carve.py', str(image_path), option, '0'])
+    monkeypatch.setattr('sys.argv', ['media-recovery carve', str(image_path), option, '0'])
 
     with pytest.raises(SystemExit) as exc:
         carve_cli.main()

@@ -1,7 +1,12 @@
 import mmap
 import struct
 import pytest
-from carver.extractors import jpeg_end, JPEG_MAX_FALLBACK_SIZE, avi_end, MAX_AVI_SIZE_DEFAULT
+from media_recovery.formats.boundaries import (
+    JPEG_MAX_FALLBACK_SIZE,
+    MAX_AVI_SIZE_DEFAULT,
+    avi_end,
+    jpeg_end,
+)
 
 
 # ── 테스트 헬퍼 ──────────────────────────────────────────────
@@ -180,7 +185,7 @@ def test_jpeg_end_trusted_next_sig_does_not_override_strong_fake_eoi():
 
 def test_stuffing_ratio_distinguishes_entropy_from_padding():
     """_stuffing_ratio: 엔트로피(높음) vs 패딩/헤더(낮음)을 구분한다."""
-    from carver.extractors import _stuffing_ratio
+    from media_recovery.formats.boundaries import _stuffing_ratio
     assert _stuffing_ratio(b'\xff\x00' * 50) == 1.0           # 전부 stuffing
     assert _stuffing_ratio(b'\xff\xd0\xff\xd7' * 20) == 1.0   # 전부 RST
     assert _stuffing_ratio(b'\x00' * 100) == 0.0              # FF 없음(패딩)
@@ -458,7 +463,7 @@ def test_jpeg_end_uses_validated_scan_start_for_damaged_header():
 
 def test_next_header_rejects_semantically_empty_direct_segments():
     """길이 2인 DQT/SOF/DHT/SOS 연쇄는 JPEG 경계 근거가 아니다."""
-    from carver.extractors import _next_header
+    from media_recovery.formats.boundaries import _next_header
 
     invalid = (
         b'\xff\xd8'
@@ -521,7 +526,7 @@ def test_jpeg_end_entropy_ff00_in_header_bounds_at_next_header():
 def test_parse_header_truncated_dht_no_crash():
     """DHT 세그먼트 길이가 실제 데이터보다 길어도(절단) 인덱스 초과로 죽지 않는다
     (축소된 carve 조각이 노출한 크래시 회귀)."""
-    from carver import jpegdecode as jd
+    from media_recovery.formats.jpeg import baseline_decoder as jd
     truncated_dht = b'\xff\xc4' + struct.pack('>H', 300) + b'\x00\x01\x01' + b'\x05' * 6
     data = b'\xff\xd8' + APP0 + truncated_dht  # EOI 없이 절단
     h = jd.parse_header(data)  # 크래시 없이 반환
@@ -533,7 +538,7 @@ def test_parse_header_truncated_dht_no_crash():
 def test_next_avi_finds_signature_within_bound():
     """_next_avi는 [start, hi) 안의 첫 RIFF…AVI 오프셋을 반환하고, 없으면 hi를 반환한다.
     RIFF지만 AVI 아님(WAV 등)은 무시하고, hi 밖 시그니처도 무시한다."""
-    from carver.extractors import _next_avi
+    from media_recovery.formats.boundaries import _next_avi
     data = b'\x00' * 50 + make_avi(chunk_size=100) + b'\x00' * 50
     assert _next_avi(data, 0, len(data)) == 50        # 첫 AVI 시그니처
     assert _next_avi(data, 51, len(data)) == len(data)  # 시그니처 지난 뒤 → 없음(hi)
@@ -571,7 +576,7 @@ class TrackingFindData:
 
 def test_next_entropy_marker_skips_stuffing_restart_and_preserves_fill_start():
     """최적화 경로와 find fallback이 같은 marker/fill 위치를 반환한다."""
-    from carver.extractors import _next_entropy_marker
+    from media_recovery.formats.boundaries import _next_entropy_marker
 
     raw = b'prefix\xff\x00data\xff\xd3more\xff\xff\xd9tail'
     expected_start = raw.index(b'\xff\xff\xd9')
@@ -588,7 +593,7 @@ def test_next_entropy_marker_skips_stuffing_restart_and_preserves_fill_start():
 
 def test_next_header_limits_each_find_to_requested_bound():
     """경계 밖 시그니처를 찾느라 큰 디스크 이미지의 나머지를 스캔하지 않는다."""
-    from carver.extractors import _next_header
+    from media_recovery.formats.boundaries import _next_header
 
     bound = 64
     data = TrackingFindData(b'\x00' * 100 + b'\xff\xd8\xff\xe0')
@@ -599,7 +604,7 @@ def test_next_header_limits_each_find_to_requested_bound():
 
 def test_next_avi_limits_each_find_to_requested_bound():
     """AVI 경계 탐색도 hi를 bytes.find의 end로 전달한다."""
-    from carver.extractors import _next_avi
+    from media_recovery.formats.boundaries import _next_avi
 
     bound = 64
     data = TrackingFindData(b'\x00' * 100 + make_avi())
@@ -610,7 +615,7 @@ def test_next_avi_limits_each_find_to_requested_bound():
 
 def test_indexed_avi_boundary_does_not_repeat_raw_riff_search():
     """전체 AVI 인덱스가 있으면 같은 범위를 raw RIFF로 다시 검색하지 않는다."""
-    from carver.extractors import _next_avi_boundary
+    from media_recovery.formats.boundaries import _next_avi_boundary
 
     data = TrackingFindData(b'\x00' * 100 + make_avi())
 
@@ -620,7 +625,7 @@ def test_indexed_avi_boundary_does_not_repeat_raw_riff_search():
 
 def test_avi_boundary_without_index_keeps_raw_riff_fallback():
     """AVI 인덱스가 None이면 독립 API 호출을 위해 raw 검색을 유지한다."""
-    from carver.extractors import _next_avi_boundary
+    from media_recovery.formats.boundaries import _next_avi_boundary
 
     avi_offset = 64
     data = TrackingFindData(b'\x00' * avi_offset + make_avi())

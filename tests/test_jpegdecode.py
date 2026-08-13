@@ -1,11 +1,11 @@
-"""carver.jpegdecode 디코더 검증 — PIL/libjpeg와 대조."""
+"""baseline_decoder 디코더 검증 — PIL/libjpeg와 대조."""
 import io
 
 import numpy as np
 import pytest
 from PIL import Image
 
-from carver import jpegdecode as jd
+from media_recovery.formats.jpeg import baseline_decoder as jd
 
 
 def encode(img: np.ndarray, subsampling: int, quality: int = 92) -> bytes:
