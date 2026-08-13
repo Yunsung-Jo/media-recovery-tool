@@ -161,11 +161,14 @@ media-recovery enhance output/jpeg output/jpeg_recovered -j 6
 - AVI는 추출만 하며 영상 스트림이나 인덱스를 수리하지 않는다.
 - JPEG 복구 결과는 먼저 편집·재동기 절단점의 MCU 밴드를 배치한 뒤, 상단 행을 기준으로 모든 MCU 행
   경계의 절대 위상을 최대 5회 함께 맞춘다. 전역 해가 없거나 안전 게이트에서 기각될 때만 절단점 주변의
-  짧은 구조 밀림과 기존 보수적 행 스티치를 적용한다. 출력 크기와 원본 MCU 순서를 유지하면서 전체 MCU의
-  5% 안에서 회색 MCU 삽입·유실을 허용한다. 안전 게이트까지 기각된 구간에는 밀림이 남을 수 있고,
-  DC 재설정으로 생긴 색 캐스트는 아직 보정하지 않는다.
+  짧은 구조 밀림과 기존 보수적 행 스티치를 적용한다. 출력 크기와 원본 MCU 순서를 유지하면서
+  `ceil(전체 MCU·0.05)` 안에서 회색 MCU 삽입·유실을 허용한다. 안전 게이트까지 기각된 구간에는
+  밀림이 남을 수 있다. 현재 구현은 소형 이미지에도 한 MCU 행 예외를 두지 않는다.
+  reconstruct 단계는 DC 재설정으로 생긴 색 캐스트를 보정하지 않으며, 썸네일이 있는 일부 파일만 선택적
+  `enhance` 단계에서 후처리한다.
 
-현재 전체 데이터 기준선과 후속 작업은 [현재 상태](docs/current-state.md)를 확인한다.
+현재 검증 범위와 후속 작업은 [상태](docs/status.md), 기준선과 수치의 해석은
+[평가](docs/evaluation.md)를 확인한다.
 
 ## 개발
 
@@ -175,7 +178,10 @@ python -m pytest
 ```
 
 - [문서 안내](docs/README.md)
-- [아키텍처](docs/architecture.md)
+- [설계](docs/design.md)
+- [산출물과 provenance](docs/artifacts.md)
+- [평가와 기준선](docs/evaluation.md)
+- [현재 상태와 우선 작업](docs/status.md)
 - [carve 동작 계약](docs/specs/0001-carve.md)
 - [recover 동작 계약](docs/specs/0002-recover.md)
-- [아키텍처 결정 기록](docs/adr/README.md)
+- [역사적 아키텍처 결정 기록](docs/adr/README.md)

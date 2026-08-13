@@ -1,6 +1,8 @@
 # `media-recovery carve` 동작 계약
 
-이 문서는 현재 `media-recovery carve`의 사용자 관점 동작과 카빙 경계 계약을 설명한다.
+이 문서는 현재 `media-recovery carve`의 사용자 관점 동작과 카빙 경계의 세부 계약 정본이다.
+파이프라인의 지속 설계는 [design.md](../design.md), 현재 산출물과 provenance 한계는
+[artifacts.md](../artifacts.md)를 함께 본다.
 
 ## 개요
 
@@ -126,4 +128,5 @@ fallback은 `movi/rec`의 `NNdc`·`NNdb` 등 stream payload 안 JPEG를 외부 �
   시작·후속 구조가 덮어써진 파일은 탐지 모델 밖이다.
 - AVI stream/index 자체는 수리하지 않는다.
 
-포맷 근거는 [포맷 메모](../format-notes.md), 결정 이유는 [ADR 목록](../adr/README.md)을 따른다.
+포맷 근거는 [포맷 메모](../format-notes.md), 현재 검증 범위와 한계는 [상태](../status.md)를 따른다.
+결정 당시 배경과 대안은 역사 자료인 [ADR 목록](../adr/README.md)에 보존한다.

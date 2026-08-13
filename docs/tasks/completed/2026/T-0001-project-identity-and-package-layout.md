@@ -12,12 +12,12 @@ depends_on: []
 
 1. 저장소 루트의 `AGENTS.md`
 2. [`transition-plan.md`](../../../transition-plan.md)
-3. 현재 구조를 설명하는 [`architecture.md`](../../../architecture.md)
+3. 당시 현재 구조를 설명하던 `architecture.md` — T-0002에서 [지속 설계](../../../design.md)로 이관 후 삭제
 4. 현재 CLI 계약인 [`0001-carve.md`](../../../specs/0001-carve.md)와
    [`0002-recover.md`](../../../specs/0002-recover.md)
 
-`transition-plan.md`는 목표 상태이고 `architecture.md`와 specs는 아직 현재 구현을 설명한다. 둘을 섞어서
-이미 구현된 것으로 간주하지 않는다.
+`transition-plan.md`는 목표 상태이고 당시 `architecture.md`와 specs는 현재 구현을 설명했다. T-0002 뒤
+구조 정본은 `design.md`로 바뀌었다. 목표를 이미 구현된 것으로 간주하지 않는다.
 
 ## 문제
 
@@ -230,8 +230,8 @@ exit code 0이었다. `media-recovery recover --help`는 의도대로 invalid ch
 ## 지속 문서 반영
 
 - 루트 `README.md`: 이름, 설치와 CLI
-- `docs/architecture.md`: T-0002 전까지 실제 새 코드 구조를 반영
-- `docs/current-state.md`: 완료한 패키지 전환과 테스트 기준선
+- 당시 `docs/architecture.md`: T-0002에서 `docs/design.md`로 이관 후 삭제
+- 당시 `docs/current-state.md`: T-0002에서 `docs/status.md`·`docs/evaluation.md`로 이관 후 삭제
 - `AGENTS.md`: 전환 완료 뒤 현재 구조와 명령으로 정리
 
 ADR/spec의 전면 이관은 T-0002에서 수행한다.

@@ -51,4 +51,4 @@ JFIF/Exif 앵커와 EOI가 함께 손상된 JPEG, SOI 없는 APP-less table-firs
 - [ADR 0007](0007-carve-corrupt-header-boundary.md) — JPEG 경계의 손상 marker 처리
 - [ADR 0010](0010-avi-structure-and-opendml-boundary.md) — AVI size와 OpenDML 경계
 - [carve 명세](../specs/0001-carve.md)
-- [현재 상태](../current-state.md)
+- [현재 상태와 한계](../status.md)

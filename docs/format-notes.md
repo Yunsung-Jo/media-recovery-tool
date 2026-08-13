@@ -3,7 +3,8 @@
 일반 JPEG·AVI 해설이 아니라 이 프로젝트의 경계 판정과 복구 로직에서 실수하기 쉬운 사실만 남긴다.
 표준 근거는 [ITU-T T.81](https://www.itu.int/rec/T-REC-T.81)과
 [Microsoft AVI RIFF 문서](https://learn.microsoft.com/en-us/windows/win32/directshow/avi-riff-file-reference)다.
-코퍼스 관찰과 프로젝트별 휴리스틱은 표준 요구사항이 아니며, 선택 근거는 관련 ADR이 정본이다.
+코퍼스 관찰과 프로젝트별 휴리스틱은 표준 요구사항이 아니다. 현재 설계와 계약은
+[design.md](design.md)와 관련 spec이 정본이고, 선택 당시의 배경·대안은 관련 ADR에 보존한다.
 
 ## JPEG 마커와 경계
 

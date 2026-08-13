@@ -2,8 +2,9 @@
 
 > 상태: 승인된 목표 방향. 아직 구현되지 않은 내용이 포함되어 있다.
 >
-> 현재 코드의 실제 동작은 `architecture.md`와 `specs/`를 따르고, 전환 작업의 범위는
-> `tasks/active/`의 활성 Task를 따른다. 목표 구조를 현재 구현으로 오해하지 않는다.
+> 현재 코드의 실제 동작은 `design.md`·`artifacts.md`의 Current 절과 `specs/`를 따르고, 현재 검증
+> 범위는 `status.md`·`evaluation.md`, 전환 작업의 범위는 `tasks/active/`의 활성 Task를 따른다.
+> Planned 목표 구조를 현재 구현으로 오해하지 않는다.
 
 이 문서는 `rawcarve`를 **Media Recovery Tool**로 전환하기 위해 사용자와 합의한 방향을 보존한다.
 전환이 완료되면 지속할 내용은 `design.md`, `artifacts.md`, `evaluation.md`, `status.md`에 흡수하고 이
@@ -581,7 +582,8 @@ JSON Schema는 `schemas/`에서 코드와 함께 배포한다. 완료된 run은 
 
 ## 12. 문서 체계와 기존 문서 이관
 
-목표 문서는 다음과 같다.
+T-0002에서 다음 지속 문서 골격을 만들었다. 각 문서는 Current와 Planned를 명시적으로 구분하며 아직
+구현되지 않은 목표를 현재 계약처럼 표현하지 않는다.
 
 ```text
 docs/
@@ -594,15 +596,20 @@ docs/
 └── tasks/
 ```
 
-- `design.md`: 현재 파이프라인, 모듈 책임, 핵심 불변조건과 이유
-- `artifacts.md`: case/run, schema, provenance, forensic/preview/enhanced 계약
-- `evaluation.md`: 합성 손상 코퍼스, 실제 고정 표본, 지표와 전수 검증 조건
-- `status.md`: 현재 검증 범위, 기준선, 알려진 한계와 우선 작업
+- `design.md`: Current 파이프라인·모듈 책임·핵심 불변조건과 Planned 설계 방향
+- `artifacts.md`: Current 출력·분류·provenance 한계와 Planned case/run·forensic artifact 계약
+- `evaluation.md`: Current 자동 검증·역사 기준선·평가 원칙과 Planned corpus·전수 검증 조건
+- `status.md`: Current 검증 범위·알려진 한계와 Planned 우선 작업
 - `format-notes.md`: JPEG·AVI의 객관적인 형식 사실
 - `tasks/`: 작업 목표·범위·검증·결과
 
 새 ADR은 만들지 않는다. T-0002는 새 문서 골격을 만들고 현재 문서의 중복을 줄이는 작업을 시작하지만,
 기존 ADR/spec을 그 Task에서 반드시 모두 제거하는 것을 목표로 하지 않는다.
+
+T-0002는 `architecture.md`의 구조·불변조건을 `design.md`로, `current-state.md`의 검증 범위·상세 수치·
+실험 맥락을 `status.md`와 `evaluation.md`로 완전히 이관했다. inbound link와 code 참조가 남지 않은 것을
+검증한 뒤 두 legacy 파일을 삭제했다. 세부 Current 계약을 완전히 흡수하지 않은 두 spec과 결정 당시
+배경·대안을 보존하는 12개 ADR은 유지한다.
 
 - 현재 계약을 새 `design.md`·`artifacts.md`가 완전히 흡수하기 전에는 해당 spec을 유지한다.
 - 아직 구현되지 않은 내용은 문서마다 `Planned`로 표시하고 `Current` 동작과 섞지 않는다.
@@ -631,15 +638,15 @@ docs/
 
 | 기존 문서/내용 | 목적지 |
 |---|---|
-| carve/recover CLI 사용법 | 루트 `README.md` |
+| carve/reconstruct CLI 사용법 | 루트 `README.md` |
 | 객체 탐색·복구 흐름·불변조건 | `design.md` |
 | 출력 구조·상태·artifact | `artifacts.md` |
 | 후보 평가·기준선·비교 절차 | `evaluation.md` |
 | 알려진 한계·후속 우선순위 | `status.md` |
 | JPEG·AVI 객관적 사실 | `format-notes.md` |
 | 재현 가능한 edge case | 테스트 |
-| `architecture.md` | `design.md` |
-| `current-state.md` | `status.md`, `evaluation.md` |
+| `architecture.md` (이관 후 삭제) | `design.md` |
+| `current-state.md` (이관 후 삭제) | `status.md`, `evaluation.md` |
 
 정확한 과거 임계값과 실험 일지 전체를 새 설계 문서에 복제하지 않는다. 현재 임계값의 정본은 코드와
 테스트이며, 후속 구현을 실제로 제약하는 이유만 `evaluation.md`에 남긴다. 과거 ADR을 가짜 완료 Task로
@@ -648,7 +655,7 @@ docs/
 ### Legacy 기준 자료 inventory
 
 외부로 이동한 자료의 절대 경로는 영구 문서 계약으로 만들지 않지만, 기준선과 원자료의 연결은 잃지
-않는다. T-0002 또는 T-0003에서 접근 가능한 legacy 자료마다 다음 inventory를 만든다.
+않는다. T-0003에서 접근 가능한 legacy 자료마다 다음 inventory를 만든다.
 
 - 논리 dataset ID와 설명
 - 입력 이미지 전체 SHA-256과 크기
@@ -693,8 +700,8 @@ placement/gap, top-1/top-K 정확도를 측정한다. 정답 원본이 없는 �
 | T-0009 | 반복 placement와 evidence 평가 | AI enhancement |
 | T-0010 | preview와 thumbnail enhancement 분리 | enhancement를 source로 주장 |
 
-Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를 자동 확장하지 않는다. T-0001은 완료됐으며
-다음 계획 작업은 T-0002다. 새 활성 Task 문서는 실제 작업을 시작할 때 만든다.
+Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를 자동 확장하지 않는다. T-0001과 T-0002는
+완료됐으며 다음 계획 작업은 T-0003이다. 새 활성 Task 문서는 실제 작업을 시작할 때 만든다.
 
 ## 15. 전환 중 지켜야 할 금지 사항
 
@@ -717,4 +724,5 @@ Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를
 - 이전 전 243개와 이전 후 248개 테스트가 통과했고 합성 fixture의 정규화 snapshot이 일치했다.
 - `output*`과 `shift_experiments`는 사용자가 저장소 밖으로 이동한 상태를 유지한다.
 - `usb.img`는 Git 비추적 원본으로 보존하며 T-0001에서는 전수 처리하지 않았다.
-- 다음 계획 작업은 T-0002 문서 체계의 점진적 이관이다.
+- T-0002에서 Current/Planned 지속 문서 골격을 만들고 기존 architecture, current-state, spec과 ADR을
+  점진적으로 연결했다. 다음 계획 작업은 T-0003의 `work/`·run·JSONL artifact 계약과 legacy inventory다.

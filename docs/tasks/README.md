@@ -22,10 +22,10 @@ Task는 한 작업의 문제, 목표, 범위, 불변조건, 검증과 실제 결
 docs/tasks/
 ├── README.md
 ├── active/
-│   └── T-0001-....md
 └── completed/
     └── 2026/
-        └── T-0001-....md
+        ├── T-0001-project-identity-and-package-layout.md
+        └── T-0002-current-planned-document-structure.md
 ```
 
 - 동시에 활성화하는 Task 수를 최소화한다.
@@ -127,7 +127,7 @@ depends_on: []
 | Task | 제목 |
 |---|---|
 | [T-0001](completed/2026/T-0001-project-identity-and-package-layout.md) | 프로젝트 정체성과 패키지 구조 |
-| T-0002 | Current/Planned 문서 골격과 기존 지식의 점진적 이관 |
+| [T-0002](completed/2026/T-0002-current-planned-document-structure.md) | Current/Planned 문서 골격과 기존 지식의 점진적 이관 |
 | T-0003 | `work/`, stage run lineage·lifecycle과 JSONL artifact 계약 |
 | T-0004 | 포렌식 도메인 모델과 NPZ schema |
 | T-0005 | 기존 복구 엔진의 동작 보존 책임 분리 |
@@ -137,4 +137,4 @@ depends_on: []
 | T-0009 | placement 반복 평가 |
 | T-0010 | preview와 enhancement 분리 |
 
-현재 활성 Task는 없다. 다음 계획 작업은 T-0002다.
+현재 활성 Task는 없다. 다음 계획 작업은 T-0003이다.

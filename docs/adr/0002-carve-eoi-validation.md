@@ -51,7 +51,7 @@ ddrescue로 카빙한 JPEG 다수가 resync 복구(ADR 0001) 후에도 회색이
 - 임계 휴리스틱은 가짜/진짜를 확률적으로 가른다. 오판은 recover가 방어하나 잉여 raw가 생길 수 있다.
 
 후속 [ADR 0005](0005-scaled-accept-threshold.md)는 작은 이미지와 짧은 손상 간격의 resync 수락
-한계를 완화했다. 남은 복구 한계는 [현재 상태](../current-state.md)를 따른다.
+한계를 완화했다. 현재 남은 복구 한계는 [status.md](../status.md)를 따른다.
 
 ### 후속 보완 (2026-07-13)
 

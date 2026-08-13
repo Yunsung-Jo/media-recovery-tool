@@ -14,19 +14,20 @@ baseline JPEG를 구조적으로 복구한다. 저장소와 Python package 정�
 1. 이 파일
 2. [`docs/transition-plan.md`](docs/transition-plan.md) — 승인된 목표 방향과 Task 로드맵
 3. [`docs/tasks/active/`](docs/tasks/active/) — 현재 작업의 범위와 완료 조건
-4. 현재 구현을 이해할 때만 `docs/architecture.md`, `docs/specs/`, `docs/current-state.md`
+4. 현재 구현을 이해할 때 `docs/design.md`, `docs/artifacts.md`, `docs/status.md`, 필요하면 `docs/specs/`
 
 현재 활성 Task는 없다. 완료한
-[`T-0001 프로젝트 정체성과 Python 패키지 구조 전환`](docs/tasks/completed/2026/T-0001-project-identity-and-package-layout.md)은
-패키지와 CLI만 이전했으며 복구 알고리즘·출력 계약·문서 체계를 함께 재설계하지 않았다. 다음 계획 작업은
-T-0002이고, 실제 시작할 때 합의한 범위로 활성 Task 문서를 만든다.
+[`T-0002 Current와 Planned 지속 문서 구조`](docs/tasks/completed/2026/T-0002-current-planned-document-structure.md)는
+Python code와 현재 계약을 바꾸지 않고 문서 정본을 이관했다. `architecture.md`와 `current-state.md`는
+내용의 완전한 흡수와 참조 0을 확인한 뒤 삭제했고 spec과 ADR은 현재 계약·결정 근거로 유지했다.
+다음 계획 작업은 T-0003이고 실제 시작할 때 합의한 범위로 활성 Task를 만든다.
 
 문서가 충돌하면 다음 우선순위를 사용한다.
 
 1. 이 `AGENTS.md`의 안전·작업 규칙
 2. 활성 Task의 범위·불변조건·완료 조건
 3. `docs/transition-plan.md`의 목표 방향
-4. 현재 코드와 테스트, 현행 architecture/spec
+4. 현재 코드와 테스트, `docs/design.md`·`docs/artifacts.md`의 Current와 현행 spec
 5. 과거 ADR과 완료 Task의 역사적 설명
 
 ## 현재 구현
@@ -36,7 +37,7 @@ T-0002이고, 실제 시작할 때 합의한 범위로 활성 Task 문서를 만
 - `media-recovery enhance`: EXIF thumbnail 기반 선택적 후처리
 - `src/media_recovery/`: CLI, 스캐너, 추출기, JPEG 디코더, 복구 엔진
 - `tests/`: 회귀 테스트
-- `docs/`: 전환 계획, Task, 현재 상태, 동작 계약, 기술 결정, 포맷 메모
+- `docs/`: Current/Planned 설계·산출물·평가·상태 정본, 전환 계획, Task, 현행 spec, 역사 ADR, 포맷 메모
 
 ## 안전과 범위
 
@@ -98,15 +99,19 @@ T-0002이고, 실제 시작할 때 합의한 범위로 활성 Task 문서를 만
 | 변경 | 문서 |
 |------|------|
 | 설치·사용법·CLI 예시 변경 | `README.md` |
-| 모듈 책임·데이터 흐름 변경 | `docs/architecture.md` |
-| CLI·출력·분류·복구 계약 변경 | 기존 `docs/specs/` 갱신 |
+| 모듈 책임·데이터 흐름·핵심 불변조건 변경 | `docs/design.md` |
+| 현재 산출물·분류·provenance 계약 변경 | `docs/artifacts.md`와 관련 `docs/specs/` |
+| CLI 인자·세부 동작 계약 변경 | 관련 `docs/specs/`와 `README.md` |
 | 현재 활성 작업의 목표·범위·검증 | `docs/tasks/active/` |
 | 승인된 전체 전환 방향 | `docs/transition-plan.md` |
-| 기준선·알려진 한계·후속 작업 변경 | `docs/current-state.md` 갱신 |
+| 평가 방법·기준선 변경 | `docs/evaluation.md` |
+| 현재 검증 범위·알려진 한계·후속 작업 변경 | `docs/status.md` |
 | 구현 판단에 필요한 JPEG·AVI 사실 | `docs/format-notes.md` 갱신 |
 
-새 ADR은 만들지 않는다. 기존 `docs/adr/`와 `docs/specs/`는 T-0002에서 지속 내용을 새 정본 문서로
-이관하기 전까지 역사 자료로 보존한다. 검토 없이 일괄 삭제하거나 과거 ADR을 완료 Task로 변환하지 않는다.
+새 ADR은 만들지 않는다. 기존 `docs/adr/`는 결정 당시 근거를 보존하는 역사 자료이고 `docs/specs/`는 새
+지속 문서가 완전히 흡수하지 않은 현재 세부 계약이다. `docs/architecture.md`와 `docs/current-state.md`는
+T-0002에서 새 정본으로 완전히 이관하고 inbound link와 code 참조 0을 확인한 뒤 삭제했다. 같은 조건을
+확인하지 않고 spec·ADR을 삭제하거나 과거 ADR을 완료 Task로 변환하지 않는다.
 
 문서의 수치·코드 참조·링크·검증 주장은 실제 원자료와 현재 코드로 확인한다. 기술 문서는 사실과 인과를
 중심으로 쓰되 문체 자체를 과도하게 규제하지 않는다.

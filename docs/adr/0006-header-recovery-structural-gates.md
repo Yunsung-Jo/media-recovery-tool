@@ -44,7 +44,7 @@ DQT는 파일별 품질 설정에 따라 달라지므로 자체 후보와 이웃
 
 헤더 복구는 `HEADER_RECOVERED` 분류와 `header_recovered/` 출력으로 일반 재동기 복구와 분리됐다.
 `report.csv`의 `header_fix`는 교체한 세그먼트를 기록한다. 당시 전체 데이터에서는 61개를 헤더 복구하고
-기존 유지 파일의 `undec_after` 악화가 없었다. 최신 분포는 [현재 상태](../current-state.md)를 따른다.
+기존 유지 파일의 `undec_after` 악화가 없었다. 현재 기준선은 [evaluation.md](../evaluation.md)를 따른다.
 
 헤더가 복구돼도 엔트로피 소실, 수평 밀림, 색 캐스트는 남을 수 있다. 소비율 게이트는 destuff가 첫 EOI를
 경계로 쓰는 현재 동작에 의존하므로 EOI 처리가 바뀌면 함께 재검토한다.

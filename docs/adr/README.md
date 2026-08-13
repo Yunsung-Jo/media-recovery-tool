@@ -1,23 +1,31 @@
-# 아키텍처 결정 기록
+# 아키텍처 결정 기록 — 역사 자료
 
-ADR은 현재 사용법이나 기준선이 아니라, 이후 구현을 제약하는 비자명한 선택과 당시의 근거를 보존한다.
-현재 동작은 [carve 명세](../specs/0001-carve.md)와 [recover 명세](../specs/0002-recover.md), 최신 수치와
-남은 작업은 [현재 상태](../current-state.md)를 우선한다.
+ADR은 현재 사용법·계약·기준선의 정본이 아니라 비자명한 선택이 생긴 당시의 배경, 대안과 결과를
+보존한다. T-0002는 12개 ADR을 삭제하거나 완료 Task로 변환하지 않고, 지속할 원칙을
+[design.md](../design.md), [evaluation.md](../evaluation.md)와 [format-notes.md](../format-notes.md)로
+점진적으로 이관했다.
 
-| 번호 | 결정 | 상태 |
-|---|---|---|
-| [0001](0001-resync-recovery.md) | 손상 JPEG를 비트 디코더와 바이트 편집·재동기로 복구한다 | Accepted |
-| [0002](0002-carve-eoi-validation.md) | EOI 직후 엔트로피를 검사해 가짜 EOI를 건너뛴다 | Accepted |
-| [0003](0003-recover-perf-optimization.md) | 출력이 동일한 핫패스 최적화만 적용한다 | Accepted |
-| [0004](0004-resync-dc-reset-recovery.md) | 재동기 때 DC 캐리와 0 리셋을 함께 평가한다 | Accepted |
-| [0005](0005-scaled-accept-threshold.md) | 재동기 수락 임계를 남은 MCU에 비례시킨다 | Accepted |
-| [0006](0006-header-recovery-structural-gates.md) | 헤더 복구 후보는 구조 신호로 판정한다 | Accepted |
-| [0007](0007-carve-corrupt-header-boundary.md) | 손상 JPEG 헤더의 마커·길이를 검증해 과다 카빙을 막는다 | Accepted |
-| [0008](0008-jpeg-boundary-stops-at-avi.md) | JPEG 경계는 다음 AVI 시그니처에서 정지한다 | Accepted |
-| [0009](0009-structural-damaged-starts.md) | 손상 시작은 앵커와 후속 구조를 함께 검증한다 | Accepted |
-| [0010](0010-avi-structure-and-opendml-boundary.md) | AVI 경계는 RIFF 구조와 연속 OpenDML form으로 검증한다 | Accepted |
-| [0011](0011-resync-segment-mcu-alignment.md) | 복구 절단 구간을 MCU 행 위상으로 재배치한다 | Accepted |
-| [0012](0012-thumbnail-reference-correction.md) | EXIF 썸네일을 참조 오라클로 잔여 밀림·색 캐스트를 보정한다 | Accepted |
+현재 동작은 [설계](../design.md), [산출물](../artifacts.md),
+[carve spec](../specs/0001-carve.md)과 [reconstruct spec](../specs/0002-recover.md)을 우선한다. 최신 검증
+범위와 수치는 [status.md](../status.md)와 [evaluation.md](../evaluation.md)를 우선한다.
 
-새 ADR이 정말 필요한 경우 `배경`, `결정`, `대안`, `결과`만 작성하고 가장 가까운 기존 ADR의 형식을
-따른다. 실험 과정 전체나 현재 기준선은 ADR에 복제하지 않는다.
+| 번호 | 당시 결정 | 지속 정본의 핵심 목적지 | 상태 |
+|---|---|---|---|
+| [0001](0001-resync-recovery.md) | 손상 JPEG를 bit decoder와 byte 편집·resync로 복구 | design | Accepted |
+| [0002](0002-carve-eoi-validation.md) | EOI 직후 entropy를 검사해 가짜 EOI를 건너뜀 | design, format notes | Accepted |
+| [0003](0003-recover-perf-optimization.md) | 출력이 같은 hot path 최적화만 적용 | evaluation | Accepted |
+| [0004](0004-resync-dc-reset-recovery.md) | resync 때 DC carry와 0 reset을 함께 평가 | design | Accepted |
+| [0005](0005-scaled-accept-threshold.md) | resync 수락 임계를 남은 MCU에 비례 | evaluation, current spec | Accepted |
+| [0006](0006-header-recovery-structural-gates.md) | header 후보를 구조 신호로 판정 | design, evaluation | Accepted |
+| [0007](0007-carve-corrupt-header-boundary.md) | 손상 JPEG header의 marker·길이를 검증 | design | Accepted |
+| [0008](0008-jpeg-boundary-stops-at-avi.md) | JPEG boundary를 다음 외부 AVI로 제한 | design | Accepted |
+| [0009](0009-structural-damaged-starts.md) | 손상 시작은 anchor와 후속 구조를 함께 검증 | design | Accepted |
+| [0010](0010-avi-structure-and-opendml-boundary.md) | AVI boundary를 RIFF 구조와 연속 OpenDML form으로 검증 | design, format notes | Accepted |
+| [0011](0011-resync-segment-mcu-alignment.md) | 복구 절단 구간을 MCU 행 위상으로 재배치 | design, evaluation | Accepted |
+| [0012](0012-thumbnail-reference-correction.md) | Exif thumbnail로 잔여 밀림·색 cast를 보정 | design, evaluation | Accepted |
+
+모든 ADR 원문과 inbound link를 유지한다. 현재 임계와 세부 동작이 ADR의 당시 설명에서 후속 보완됐다면
+code·test와 현행 spec이 우선한다. 과거 실험 수치는 현재 성능으로 바꾸어 읽지 않는다.
+
+새 ADR은 만들지 않는다. 새로운 판단은 해당 활성 Task에서 검증한 뒤 `design.md`, `artifacts.md`,
+`evaluation.md`, `status.md` 또는 `format-notes.md`의 적절한 정본에 반영한다.
