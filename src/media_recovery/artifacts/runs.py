@@ -656,11 +656,19 @@ def _validate_completion(run_dir: Path, run: dict[str, Any], marker_path: Path) 
 
 
 def _safe_artifact_path(run_dir: Path, relative_path: str | Path) -> Path:
+    if ":" in os.fspath(relative_path):
+        raise ValueError("artifact path must not contain ':'")
     relative = Path(relative_path)
     if relative.is_absolute() or not relative.parts or ".." in relative.parts:
         raise ValueError("artifact path must be a non-empty relative path without '..'")
-    destination = (run_dir / relative).resolve()
-    if not destination.is_relative_to(run_dir):
+    destination = run_dir / relative
+    current = run_dir
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("artifact path cannot traverse a symbolic link")
+    resolved = destination.resolve()
+    if not resolved.is_relative_to(run_dir):
         raise ValueError("artifact path escapes the run directory")
     return destination
 

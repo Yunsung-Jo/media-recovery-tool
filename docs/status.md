@@ -18,16 +18,18 @@
 | package | `src/media_recovery` |
 | CLI | `media-recovery carve`, `reconstruct`, `enhance` |
 | Python 지원 | `>=3.10` |
-| 자동 회귀 기준선 | 2026-08-13, Python 3.12.13에서 288개 통과 |
+| 자동 회귀 기준선 | 2026-08-14, Python 3.12.13에서 346개 통과 |
 | 현재 출력 | command별 디렉터리 트리, JPEG/AVI와 CSV |
 | case/run 기반 | 내부 Python API, schema 1.0과 completion seal 구현; 기존 CLI에는 미연결 |
-| forensic object/result·NPZ | 구현되지 않음 |
+| forensic object/result/candidate·NPZ | schema 1.0과 내부 Python reader/writer 구현; 기존 CLI에는 미연결 |
 | `render` 명령 | 구현되지 않음 |
 
 T-0001은 package와 CLI 경로를 이전했지만 알고리즘, 여섯 action과 현재 출력 의미를 바꾸지 않았다.
 T-0002는 Python code를 변경하지 않고 문서 정본을 Current/Planned로 나누고 기존 `architecture.md`와
 `current-state.md`를 완전히 이관해 삭제했다. T-0003은 격리된 `work/`·case/run persistence, strict
-JSON/JSONL과 legacy inventory를 구현했다. 다음 계획 작업은 T-0004다.
+JSON/JSONL과 legacy inventory를 구현했다. T-0004는 forensic domain과 object/result/candidate record,
+결정적 coefficient·validity NPZ schema를 기존 CLI와 격리된 내부 API로 구현했다. 다음 계획 작업은
+T-0005다.
 
 ### 확인된 기능 범위
 
@@ -42,10 +44,19 @@ JSON/JSONL과 legacy inventory를 구현했다. 다음 계획 작업은 T-0004�
 - action 6종, `report.csv`, `report_thumbref.csv` 출력
 - source SHA-256 case 등록, stage parent lineage, lifecycle·resume와 completed run file seal
 - UTF-8/LF strict JSONL의 coordinator ordering과 atomic replace
+- disk/object/entropy/work 좌표와 provenance를 분리한 forensic object·hypothesis·segment·edit·placement model
+- object/result/candidate schema 1.0, 직교 result 상태 조합과 deterministic candidate fingerprint
+- DQT 적용 전 Y/Cb/Cr quantized coefficient, coefficient/block validity, normalized source span ref와
+  placement owner를 담는 object/candidate별 결정적 압축 NPZ·manifest reader/writer
 
 ### 현재 검증 경계
 
-- 전체 자동 테스트 288개가 통과한다. T-0003은 case/run과 artifact I/O test 40개를 추가했다.
+- 전체 자동 테스트 346개가 통과한다. T-0003은 case/run과 artifact I/O test 40개, T-0004는 domain,
+  Draft 2020-12 schema, JSONL/NPZ·manifest·atomicity와 completion test 58개를 추가했다. T-0004 회귀에는
+  source 좌표 중복·case source 밖 span, object parent 미해소·cycle, 부모 discovery object 미해소,
+  깊은 parent chain, filesystem path alias를 포함한 owner별 NPZ 중복, 비정규 version·NPY header,
+  intervention 중복, unsafe/control/NTFS ADS path, symlink와 owner-stage 불일치 거부 및 decode segment
+  reference의 tuple snapshot이 포함된다.
 - T-0001 합성 fixture에서 package 이전 전후 파일 집합, artifact hash, action과 CSV 안정 필드가 같았다.
 - v8 전역 행 placement는 고난도·구조·정상 고정 표본을 통과했지만 `output_c3/jpeg` 970개를 최신 code로
   다시 전수 처리하지 않았다.
@@ -94,11 +105,12 @@ JSON/JSONL과 legacy inventory를 구현했다. 다음 계획 작업은 T-0004�
    AVI는 경계를 추출하지만 `idx1`·OpenDML index를 재구성하거나 audio/video stream을 수리하지 않는다.
    일부 player의 재생 시간 오독은 카빙 경계와 별도 문제다.
 
-8. **현재 CLI provenance 연결 부족**
-   case/run 기반은 input hash, tool·engine·policy·schema version, environment, options와 lineage를 보존하지만
-   기존 CLI가 아직 사용하지 않는다.
-   따라서 현재 output directory와 CSV에는 source bit span과 candidate evidence가 없고 같은 이름의 output
-   directory 재사용은 이전 파일을 남길 수 있다.
+8. **현재 CLI와 forensic artifact 연결 부족**
+   case/run과 forensic domain·NPZ 기반은 input hash, version, 좌표, coefficient·validity, placement와
+   lineage를 표현할 수 있지만 기존 CLI와 reconstruction engine이 아직 사용하지 않는다. 따라서 현재
+   output directory와 CSV에는 source bit span과 candidate evidence가 없고 같은 이름의 output directory
+   재사용은 이전 파일을 남길 수 있다. 현재 model이 복수 candidate를 표현한다고 해서 N-best algorithm이
+   구현된 것도 아니다.
 
 ### 현재 사용 시 주의
 
@@ -113,13 +125,12 @@ JSON/JSONL과 legacy inventory를 구현했다. 다음 계획 작업은 T-0004�
 
 | 순서 | Planned Task | 목표 | 이 Task 전에는 없는 것 |
 |---|---|---|---|
-| 1 | T-0004 | forensic domain과 coefficient·validity NPZ schema | source span과 typed array record |
-| 2 | T-0005 | 현행 single-best 동작을 보존한 engine 책임 분리 | 새 algorithm이나 결과 개선 |
-| 3 | T-0006 | 현재 single-best 결과의 forensic artifact 출력 | N-best 선택 |
-| 4 | T-0007 | object boundary와 header N-best | entropy beam |
-| 5 | T-0008 | entropy beam search와 component validity | thumbnail 판단 사용 |
-| 6 | T-0009 | 반복 placement와 evidence 평가 | AI enhancement |
-| 7 | T-0010 | artifact 기반 preview와 thumbnail enhancement 분리 | enhancement를 source로 주장 |
+| 1 | T-0005 | 현행 single-best 동작을 보존한 engine 책임 분리 | 새 algorithm이나 결과 개선 |
+| 2 | T-0006 | 현재 single-best 결과의 forensic artifact 출력 | N-best 선택 |
+| 3 | T-0007 | object boundary와 header N-best | entropy beam |
+| 4 | T-0008 | entropy beam search와 component validity | thumbnail 판단 사용 |
+| 5 | T-0009 | 반복 placement와 evidence 평가 | AI enhancement |
+| 6 | T-0010 | artifact 기반 preview와 thumbnail enhancement 분리 | enhancement를 source로 주장 |
 
 T-0003은 `work/`·run 구조와 접근 가능한 legacy inventory를 함께 검토했다. `/output*/`는 현행 CLI의 기본
 출력 보호, `/shift_experiments*/`는 미이관 외부 자료의 우발 추적 방지를 위해 각각 유지했다. `/work/`,
@@ -127,9 +138,9 @@ T-0003은 `work/`·run 구조와 접근 가능한 legacy inventory를 함께 검
 
 ### 장기 지원 방향
 
-- observed byte와 disk absolute offset에서 모든 결과를 역추적한다.
-- object boundary, header, entropy, segment와 placement의 복수 hypothesis를 보존한다.
-- source bit span, virtual edit, block/component validity, gap·overlap과 반증을 forensic artifact에 기록한다.
+- T-0004 model의 observed byte·disk absolute offset·source span에서 실제 engine 결과를 역추적한다.
+- 구현된 schema에 object boundary, header, entropy, segment와 placement의 실제 복수 hypothesis를 채운다.
+- source bit span, virtual edit, block/component validity, gap·overlap과 반증을 실제 stage artifact에 기록한다.
 - preview와 enhancement를 source-backed 결과에서 분리하고 generated 값을 명시한다.
 - 통제 손상 corpus에서 top-1/top-K, source span과 validity를 평가한 뒤 N-best 정책을 확정한다.
 

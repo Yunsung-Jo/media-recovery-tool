@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://media-recovery-tool.local/schemas/media-recovery.result-1.0.schema.json",
+  "title": "Media Recovery Tool forensic result record 1.0",
+  "$comment": "Candidate count and selected candidate resolution against candidates.jsonl are enforced by the Python reader.",
+  "type": "object",
+  "required": [
+    "schema", "schema_version", "required_features", "engine_version", "policy_version",
+    "object_id", "execution_status", "support_status", "decode_extent", "selection_status",
+    "header_basis", "artifact_status", "selected_candidate_id", "selected_candidate_fingerprint",
+    "candidate_count", "interventions"
+  ],
+  "properties": {
+    "schema": {"const": "media-recovery.result"},
+    "schema_version": {"type": "string", "pattern": "^1\\.(0|[1-9][0-9]*)$"},
+    "required_features": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "engine_version": {"type": "string", "minLength": 1},
+    "policy_version": {"type": "string", "minLength": 1},
+    "object_id": {"type": "string", "pattern": "^(jpeg|avi)-[0-9a-f]{16}$"},
+    "execution_status": {"enum": ["completed", "interrupted", "error"]},
+    "support_status": {"enum": ["supported", "partially_supported", "unsupported"]},
+    "decode_extent": {"enum": ["complete", "partial", "none", "not_attempted"]},
+    "selection_status": {
+      "enum": [
+        "source_candidate_selected", "reconstruction_candidate_selected",
+        "no_supported_candidate", "not_applicable"
+      ]
+    },
+    "header_basis": {
+      "enum": [
+        "source", "source_repaired", "standard_assumption", "donor_assumption", "hypothesis", "none"
+      ]
+    },
+    "artifact_status": {"enum": ["complete", "partial", "unavailable"]},
+    "selected_candidate_id": {
+      "oneOf": [{"type": "null"}, {"type": "string", "pattern": "^cand-[0-9]{3}$"}]
+    },
+    "selected_candidate_fingerprint": {
+      "oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9a-f]{64}$"}]
+    },
+    "candidate_count": {"type": "integer", "minimum": 0, "maximum": 1000},
+    "interventions": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "byte_substitution", "byte_deletion", "byte_insertion", "bit_resync", "dc_reset",
+          "mcu_placement"
+        ]
+      },
+      "uniqueItems": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "selection_status": {
+            "enum": ["source_candidate_selected", "reconstruction_candidate_selected"]
+          }
+        },
+        "required": ["selection_status"]
+      },
+      "then": {
+        "properties": {
+          "execution_status": {"const": "completed"},
+          "decode_extent": {"enum": ["complete", "partial"]},
+          "artifact_status": {"enum": ["complete", "partial"]},
+          "selected_candidate_id": {"type": "string", "pattern": "^cand-[0-9]{3}$"},
+          "selected_candidate_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "candidate_count": {"minimum": 1}
+        }
+      },
+      "else": {
+        "properties": {
+          "selected_candidate_id": {"type": "null"},
+          "selected_candidate_fingerprint": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"selection_status": {"const": "source_candidate_selected"}},
+        "required": ["selection_status"]
+      },
+      "then": {"properties": {"header_basis": {"const": "source"}}}
+    },
+    {
+      "if": {
+        "properties": {"execution_status": {"enum": ["interrupted", "error"]}},
+        "required": ["execution_status"]
+      },
+      "then": {
+        "properties": {
+          "decode_extent": {"enum": ["partial", "none", "not_attempted"]},
+          "selection_status": {"const": "not_applicable"},
+          "artifact_status": {"enum": ["partial", "unavailable"]}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"support_status": {"const": "unsupported"}},
+        "required": ["support_status"]
+      },
+      "then": {
+        "properties": {
+          "execution_status": {"const": "completed"},
+          "decode_extent": {"const": "not_attempted"},
+          "selection_status": {"const": "not_applicable"},
+          "header_basis": {"const": "none"},
+          "artifact_status": {"const": "unavailable"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_status": {"const": "completed"},
+          "support_status": {"enum": ["supported", "partially_supported"]}
+        },
+        "required": ["execution_status", "support_status"]
+      },
+      "then": {"properties": {"decode_extent": {"enum": ["complete", "partial", "none"]}}}
+    },
+    {
+      "if": {
+        "properties": {"decode_extent": {"enum": ["complete", "partial"]}},
+        "required": ["decode_extent"]
+      },
+      "then": {"properties": {"header_basis": {"not": {"const": "none"}}}}
+    },
+    {
+      "if": {
+        "properties": {"decode_extent": {"const": "not_attempted"}},
+        "required": ["decode_extent"]
+      },
+      "then": {"properties": {"header_basis": {"const": "none"}}}
+    },
+    {
+      "if": {
+        "properties": {"selection_status": {"const": "no_supported_candidate"}},
+        "required": ["selection_status"]
+      },
+      "then": {
+        "properties": {
+          "execution_status": {"const": "completed"},
+          "decode_extent": {"enum": ["none", "partial"]},
+          "artifact_status": {"enum": ["partial", "unavailable"]}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selection_status": {"const": "not_applicable"},
+          "execution_status": {"const": "completed"}
+        },
+        "required": ["selection_status", "execution_status"]
+      },
+      "then": {"properties": {"support_status": {"const": "unsupported"}}}
+    },
+    {
+      "if": {
+        "properties": {"artifact_status": {"const": "complete"}},
+        "required": ["artifact_status"]
+      },
+      "then": {
+        "properties": {
+          "selection_status": {
+            "enum": ["source_candidate_selected", "reconstruction_candidate_selected"]
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": true
+}

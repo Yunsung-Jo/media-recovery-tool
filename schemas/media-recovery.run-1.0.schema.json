@@ -28,7 +28,7 @@
   ],
   "properties": {
     "schema": {"const": "media-recovery.run"},
-    "schema_version": {"type": "string", "pattern": "^1\\.[0-9]+$"},
+    "schema_version": {"type": "string", "pattern": "^1\\.(0|[1-9][0-9]*)$"},
     "required_features": {
       "type": "array",
       "items": {"type": "string"},

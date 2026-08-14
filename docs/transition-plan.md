@@ -12,7 +12,7 @@
 
 ## 1. 문제와 목표
 
-현재 구현에는 의미 있는 카빙·복구 기능과 248개의 회귀 테스트가 있지만 다음 문제가 있다.
+전환 시작 당시 구현에는 의미 있는 카빙·복구 기능과 248개의 회귀 테스트가 있었지만 다음 문제가 있었다.
 
 - `src/media_recovery/reconstruction/engine.py` 한 파일이 엔트로피 탐색, 디코드, 공간 배치, 평가,
   분류와 저장을 함께 담당한다.
@@ -277,8 +277,9 @@ KEEP  SHIFT  SPLIT  DROP  GAP  DEFER
 
 canonical coefficient는 Huffman entropy에서 디코드한 **DQT 적용 전 quantized DCT coefficient**다. 어떤
 DQT hypothesis로 dequantize했는지는 별도 참조로 기록한다. dequantized coefficient, spatial Y/Cb/Cr와
-RGB는 해당 DQT·sampling·표시 정책에서 생성된 파생값이다. T-0004는 validity의 block/coefficient 단위,
-부분 block 표현과 각 block의 source span 형식을 명시해야 한다.
+RGB는 해당 DQT·sampling·표시 정책에서 생성된 파생값이다. T-0004는 coefficient 단위 `missing(0)`·
+`source_backed(1)`, block 단위 `missing(0)`·`partial(1)`·`complete(2)`, normalized source span reference와
+component별 placement owner 계약을 확정했다. 정확한 Current array 계약은 [artifacts](artifacts.md)를 따른다.
 
 preview와 enhanced 이미지는 이 bundle에서 생성되는 파생물이다.
 
@@ -364,19 +365,16 @@ coordinator가 결정적인 순서로 모아 임시 파일에 쓴 뒤 `os.replac
 기록한다.
 
 NPZ는 load 시 `allow_pickle=False`를 강제하고 object dtype을 저장하지 않으며 고정 dtype/byte order를
-사용한다. manifest에 배열 이름, shape, dtype과 파일 SHA-256을 기록한다. 초기 예시는 다음과 같고 정확한
-shape와 validity enum은 T-0004에서 확정한다.
+사용한다. manifest에 run-relative path, byte 크기, 배열 이름·shape·dtype과 파일 SHA-256을 기록한다.
+T-0004가 확정한 array prefix는 다음과 같고 각 `y/cb/cr` component에 모두 존재한다.
 
 ```text
-coef_y             int32
-coef_cb            int32
-coef_cr            int32
-valid_y            uint8
-valid_cb            uint8
-valid_cr            uint8
-source_bit_start    int64
-source_bit_end      int64
-placement_owner     int32
+coef_<c>                    <i4  (blocks,8,8)
+coefficient_validity_<c>    |u1  (blocks,8,8)
+block_validity_<c>          |u1  (blocks,)
+source_span_ref_range_<c>   <i8  (blocks,8,8,2)
+source_span_refs_<c>        <i4  (references,)
+placement_owner_<c>         <i4  (raster rows,columns)
 ```
 
 NPZ 전체 로딩이 실제 병목으로 측정될 때만 Zarr나 HDF5를 검토한다.
@@ -410,9 +408,11 @@ object ID는 discovery run 안에서 media type과 절대 시작 offset에 안�
 같은 object 아래 candidate로 둔다. 향후 단편화 객체는 여러 source span을 갖되 anchor가 같은 기존
 object와 충돌하지 않는 확장 규칙을 별도 schema major에서 정한다.
 
-`cand-000`은 `case/run/object` 안에서만 유효한 ordinal이다. 다른 run의 동일·유사 후보를 비교할 수 있도록
-정규화한 header, source span, edit와 placement의 canonical serialization에서 계산한
-`candidate_fingerprint`도 기록한다.
+`cand-000`은 `case/run/object` 안에서만 유효하고 ordinal 범위는 `0..999`다. 다른 run의 동일·유사 후보를
+비교할 수 있도록 object ID와 ID순으로 정규화한 hypothesis, source span, decode segment, virtual edit와
+placement의 `media-recovery.candidate-fingerprint` `1.0` strict canonical JSON serialization에서 계산한
+전체 SHA-256 `candidate_fingerprint`도 기록한다. ordinal/ID, engine·policy version과 NPZ 물리 hash는
+fingerprint 입력이 아니다.
 
 run ID는 식별자일 뿐 재현 정보를 압축하지 않는다. `run.json`에 stage, parent run, git commit, dirty 여부,
 도구·엔진·정책 버전, 옵션, Task ID, 시간, 환경과 random seed를 별도로 기록한다. dirty 실행은 diff hash뿐
@@ -456,10 +456,11 @@ artifact_status:      complete | partial | unavailable
 `SOURCE_DECODED`, `RECONSTRUCTION_CANDIDATE_SELECTED`, `NO_SUPPORTED_CANDIDATE`, `UNSUPPORTED`,
 `PROCESSING_ERROR`처럼 보수적으로 표현한다.
 
-정확한 forensic result JSON Schema와 enum은 T-0004에서 테스트와 함께 확정한다. 의미를 다시 하나의 `action`으로
-축소하지 않는 원칙은 확정이다. JSON Schema는 필드별 enum뿐 아니라 허용되는 조합도 검증한다. 예를 들어
-`execution_status=error`인 결과가 어떤 partial artifact를 보존할 수 있는지, `unsupported`와
-`decode_extent=not_attempted`의 관계를 명시해야 한다.
+T-0004는 `media-recovery.result` `1.0` JSON Schema와 Python reader에서 이 enum과 허용 조합을 확정했다.
+의미를 다시 하나의 `action`으로 축소하지 않는다. `execution_status=error`는 partial/unavailable artifact를
+보존할 수 있지만 complete decode·candidate selection·complete artifact는 허용하지 않는다.
+`unsupported` completed 결과는 `not_attempted/not_applicable/none/unavailable` 조합을 사용한다. 전체 조합은
+[artifacts](artifacts.md)가 정본이다.
 
 ## 9. Thumbnail 정책
 
@@ -549,14 +550,14 @@ beam을 점유하지 않도록 header 종류와 source bit 구간별 diversity�
 
 schema, engine, policy 버전은 서로 분리한다.
 
-아래 JSON은 result field의 역할만 보여주는 비규범적 예시다. T-0003은 case/run/completion schema를 1.0으로
-확정했지만 result schema 문자열은 T-0004, engine과 policy 값은 해당 artifact writer와 후보 평가를
-도입하는 Task에서 각각 확정한다.
+아래 JSON은 result record의 version field 역할을 보여준다. T-0003은 case/run/completion, T-0004는
+object/result/candidate/coefficient manifest schema를 각각 1.0으로 확정했다. 실제 engine과 policy 값은
+해당 writer·평가 구현이 독립적으로 기록한다.
 
 ```json
 {
   "schema": "media-recovery.result",
-  "schema_version": "<major>.<minor>",
+  "schema_version": "1.0",
   "engine_version": "<engine-version>",
   "policy_version": "<policy-version>"
 }
@@ -670,7 +671,7 @@ T-0002는 `architecture.md`의 구조·불변조건을 `design.md`로, `current-
 
 ## 13. 검증 전략
 
-243개 테스트 통과는 중요한 회귀 기준이지만 복구 정확도의 증명은 아니다.
+346개 테스트 통과는 중요한 회귀 기준이지만 복구 정확도의 증명은 아니다.
 
 1. 단위 테스트: 파싱, boundary, decoder state, source span, placement, schema
 2. 통제 손상 코퍼스: 정상 JPEG에 substitution/deletion/insertion, bit shift, marker 길이·DHT/DQT/SOF/SOS
@@ -700,8 +701,8 @@ placement/gap, top-1/top-K 정확도를 측정한다. 정답 원본이 없는 �
 | T-0009 | 반복 placement와 evidence 평가 | AI enhancement |
 | T-0010 | preview와 thumbnail enhancement 분리 | enhancement를 source로 주장 |
 
-Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를 자동 확장하지 않는다. T-0001~T-0003은
-완료됐으며 다음 계획 작업은 T-0004다. 새 활성 Task 문서는 실제 작업을 시작할 때 만든다.
+Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를 자동 확장하지 않는다. T-0001~T-0004는
+완료됐으며 다음 계획 작업은 T-0005다. 새 활성 Task 문서는 실제 작업을 시작할 때 만든다.
 
 ## 15. 전환 중 지켜야 할 금지 사항
 
@@ -728,5 +729,10 @@ Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를
 - T-0002에서 Current/Planned 지속 문서 골격을 만들고 기존 architecture, current-state, spec과 ADR을
   점진적으로 연결했다.
 - T-0003에서 `work/`, source hash case, stage run lineage·lifecycle, strict JSON/JSONL, completion seal과
-  legacy inventory를 구현했다. 기존 CLI에는 연결하지 않았고 다음 계획 작업은 T-0004의 forensic domain과
-  NPZ schema다.
+  legacy inventory를 구현했다.
+- T-0004에서 forensic domain, object/result/candidate와 coefficient manifest schema 1.0, 결정적 압축 NPZ
+  reader/writer를 구현했다. source 좌표 중복, object parent 미해소·cycle, case source 밖 observed span,
+  부모 discovery에 해소되지 않는 object ID, filesystem alias를 포함한 owner별 NPZ path 중복,
+  비정규 NPY version과 intervention 중복, owner-stage 불일치와 traversal/control/symlink/NTFS ADS path를
+  거부한다. decode segment의 source/edit reference는 tuple snapshot으로 고정한다.
+  기존 CLI와 engine에는 연결하지 않았고 다음 계획 작업은 T-0005의 현행 engine 동작 보존 책임 분리다.

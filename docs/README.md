@@ -11,7 +11,7 @@
 | 2 | [활성 Task](tasks/active/) | 지금 무엇을 어디까지 바꾸고 검증하는가? | 현재 실행 계약 |
 | 3 | [Task 운영 규칙](tasks/README.md) | Task를 어떻게 작성하고 완료하는가? | 운영 정본 |
 | 4 | [설계](design.md) | 현재 pipeline·module·불변조건은 무엇이며 Planned는 무엇인가? | 지속 정본 |
-| 5 | [산출물](artifacts.md) | 현재 output·action·CSV와 Planned provenance는 무엇인가? | 지속 정본 |
+| 5 | [산출물](artifacts.md) | 현재 output·record·NPZ·provenance와 남은 integration은 무엇인가? | 지속 정본 |
 | 6 | [평가](evaluation.md) | 무엇을 어떻게 검증했고 수치를 어떻게 해석하는가? | 지속 정본 |
 | 7 | [상태](status.md) | 현재 검증 범위·한계와 다음 우선순위는 무엇인가? | 지속 정본 |
 | 필요 시 | [Legacy inventory](legacy-inventory.md) | 과거 기준 자료에서 무엇을 현재 확인할 수 있는가? | T-0003 확인 기록 |

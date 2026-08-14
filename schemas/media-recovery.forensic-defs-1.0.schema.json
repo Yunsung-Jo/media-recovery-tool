@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://media-recovery-tool.local/schemas/media-recovery.forensic-defs-1.0.schema.json",
+  "title": "Media Recovery Tool forensic shared definitions 1.0",
+  "$defs": {
+    "schemaVersion": {"type": "string", "pattern": "^1\\.(0|[1-9][0-9]*)$"},
+    "requiredFeatures": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "objectId": {"type": "string", "pattern": "^(jpeg|avi)-[0-9a-f]{16}$"},
+    "candidateId": {"type": "string", "pattern": "^cand-[0-9]{3}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "spanId": {"type": "string", "pattern": "^span-[0-9]{6}$"},
+    "coordinateRange": {
+      "type": "object",
+      "required": ["space", "start", "end"],
+      "properties": {
+        "space": {
+          "enum": [
+            "disk_byte",
+            "object_raw_byte",
+            "raw_entropy_bit",
+            "destuffed_bit",
+            "virtual_work_bit"
+          ]
+        },
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "indexRange": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "sourceSpan": {
+      "type": "object",
+      "required": [
+        "span_id",
+        "disk_bytes",
+        "object_raw_bytes",
+        "raw_entropy_bits",
+        "destuffed_bits",
+        "provenance"
+      ],
+      "properties": {
+        "span_id": {"$ref": "#/$defs/spanId"},
+        "disk_bytes": {
+          "allOf": [
+            {"$ref": "#/$defs/coordinateRange"},
+            {"properties": {"space": {"const": "disk_byte"}}}
+          ]
+        },
+        "object_raw_bytes": {
+          "allOf": [
+            {"$ref": "#/$defs/coordinateRange"},
+            {"properties": {"space": {"const": "object_raw_byte"}}}
+          ]
+        },
+        "raw_entropy_bits": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "allOf": [
+                {"$ref": "#/$defs/coordinateRange"},
+                {"properties": {"space": {"const": "raw_entropy_bit"}}}
+              ]
+            }
+          ]
+        },
+        "destuffed_bits": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "allOf": [
+                {"$ref": "#/$defs/coordinateRange"},
+                {"properties": {"space": {"const": "destuffed_bit"}}}
+              ]
+            }
+          ]
+        },
+        "provenance": {"const": "observed"}
+      },
+      "additionalProperties": true
+    },
+    "hypothesis": {
+      "type": "object",
+      "required": ["hypothesis_id", "kind", "assertions", "evidence_span_ids"],
+      "properties": {
+        "hypothesis_id": {"type": "string", "pattern": "^hyp-[0-9]{4}$"},
+        "kind": {"enum": ["boundary", "header", "entropy", "placement"]},
+        "assertions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "value", "provenance"],
+            "properties": {
+              "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+              "value": true,
+              "provenance": {"enum": ["observed", "inferred"]}
+            },
+            "additionalProperties": true
+          }
+        },
+        "evidence_span_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/spanId"},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "virtualEdit": {
+      "type": "object",
+      "required": [
+        "edit_id",
+        "kind",
+        "source_range",
+        "work_range",
+        "assumption",
+        "provenance"
+      ],
+      "properties": {
+        "edit_id": {"type": "string", "pattern": "^edit-[0-9]{4}$"},
+        "kind": {
+          "enum": [
+            "byte_substitution",
+            "byte_deletion",
+            "byte_insertion",
+            "bit_resync",
+            "dc_reset"
+          ]
+        },
+        "source_range": {
+          "allOf": [
+            {"$ref": "#/$defs/coordinateRange"},
+            {"not": {"properties": {"space": {"const": "virtual_work_bit"}}}}
+          ]
+        },
+        "work_range": {
+          "allOf": [
+            {"$ref": "#/$defs/coordinateRange"},
+            {"properties": {"space": {"const": "virtual_work_bit"}}}
+          ]
+        },
+        "assumption": {"type": "object", "minProperties": 1},
+        "provenance": {"const": "inferred"}
+      },
+      "additionalProperties": true
+    },
+    "decodeSegment": {
+      "type": "object",
+      "required": [
+        "segment_id",
+        "source_span_ids",
+        "virtual_edit_ids",
+        "work_bits",
+        "mcu_range",
+        "component_block_ranges",
+        "provenance"
+      ],
+      "properties": {
+        "segment_id": {"type": "string", "pattern": "^seg-[0-9]{4}$"},
+        "source_span_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/spanId"},
+          "uniqueItems": true
+        },
+        "virtual_edit_ids": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^edit-[0-9]{4}$"},
+          "uniqueItems": true
+        },
+        "work_bits": {
+          "allOf": [
+            {"$ref": "#/$defs/coordinateRange"},
+            {"properties": {"space": {"const": "virtual_work_bit"}}}
+          ]
+        },
+        "mcu_range": {"$ref": "#/$defs/indexRange"},
+        "component_block_ranges": {
+          "type": "object",
+          "required": ["y", "cb", "cr"],
+          "properties": {
+            "y": {"$ref": "#/$defs/indexRange"},
+            "cb": {"$ref": "#/$defs/indexRange"},
+            "cr": {"$ref": "#/$defs/indexRange"}
+          },
+          "additionalProperties": false
+        },
+        "provenance": {"const": "decoded"}
+      },
+      "additionalProperties": true
+    },
+    "placement": {
+      "type": "object",
+      "required": [
+        "placement_id",
+        "component",
+        "source_block_index",
+        "raster_block_row",
+        "raster_block_column",
+        "provenance"
+      ],
+      "properties": {
+        "placement_id": {"type": "string", "pattern": "^place-[0-9]{6}$"},
+        "component": {"enum": ["y", "cb", "cr"]},
+        "source_block_index": {"type": "integer", "minimum": 0},
+        "raster_block_row": {"type": "integer", "minimum": 0},
+        "raster_block_column": {"type": "integer", "minimum": 0},
+        "provenance": {"const": "inferred"}
+      },
+      "additionalProperties": true
+    }
+  }
+}

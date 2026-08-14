@@ -5,6 +5,13 @@ from collections.abc import Mapping
 from typing import Any
 
 from media_recovery.artifacts.io import ArtifactFormatError
+from media_recovery.domain.forensics import (
+    CANDIDATE_SCHEMA,
+    COEFFICIENT_MANIFEST_SCHEMA,
+    FORENSIC_SCHEMA_VERSION,
+    OBJECT_SCHEMA,
+    RESULT_SCHEMA,
+)
 
 
 CASE_SCHEMA = "media-recovery.case"

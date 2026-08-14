@@ -43,6 +43,35 @@ T-0003은 같은 Python 3.12.13 환경에서 case/run·strict JSON/JSONL test 40
 계속 통과했다. 이 기준선은 persistence 불변조건과 기존 동작 회귀 0을 보여주지만 forensic domain이나 실제
 복구 결과 schema가 구현됐다는 뜻은 아니다.
 
+### T-0004 forensic domain·NPZ 기준선
+
+T-0004는 같은 Python 3.12.13 환경에서 forensic domain, Draft 2020-12 object/result/candidate/manifest
+schema와 결정적 NPZ test 58개를 추가했다. 임시 case/run과 작은 합성 Y/Cb/Cr array만 사용했고 기존
+reconstruction engine, `usb.img`와 외부 legacy 자료는 처리하지 않았다.
+
+- 근접: `.venv\Scripts\python.exe -m pytest tests\test_forensic_artifacts.py -q` →
+  `58 passed in 8.51s`
+- T-0003 포함 근접: `.venv\Scripts\python.exe -m pytest tests\test_artifacts.py tests\test_forensic_artifacts.py -q`
+  → `98 passed in 10.30s`
+- 전체: `.venv\Scripts\python.exe -m pytest` → `346 passed in 22.44s`
+- 검증 범위: immutable domain/dict·JSONL round-trip, object/candidate ID·fingerprint 결정성, 명시적 좌표와
+  불연속 source span, provenance·result 상태 거부, coefficient/block validity·component·span-ref·owner
+  정합성, endian canonicalization, pickle/object/unknown/missing array 거부, manifest/NPZ 변조, deterministic
+  ZIP metadata·byte, staging/replace atomicity, version/required feature와 기존 completion seal, case source
+  bounds, source 좌표 중복, object parent 해소·cycle·깊은 chain, parent discovery object 해소,
+  filesystem-normalized owner별 NPZ path 고유성, canonical schema/NPY version, intervention 중복,
+  safe path schema, control character·colon/NTFS ADS·symlink와 owner-stage 거부, decode segment reference의
+  immutable tuple snapshot
+- result 상태: execution/support/decode/selection/header/artifact의 가능한 enum 조합 전체에서 배포 JSON
+  Schema와 Python validator의 허용 여부가 정확히 같은지 검사
+- wheel: 격리 `pip wheel . --no-deps` build 성공; package의 새 domain/artifact module과 기존 3개를 포함한
+  JSON Schema 8개가 wheel data에 포함됨
+
+첫 `--no-build-isolation` wheel 시도는 project `.venv`에 setuptools가 없어 실패했고, 첫 격리 시도는
+sandbox network가 build dependency 다운로드를 막아 실패했다. 허용된 network의 격리 build에서
+`setuptools>=68` 선언을 사용해 성공했다. 이는 schema/model/I/O 계약과 기존 code 회귀 0을 검증하지만 현행
+engine이 forensic record를 실제 출력하거나 N-best를 구현했다는 뜻은 아니다.
+
 ### 패키지 전환 동등성
 
 T-0001은 같은 Python 3.12.13, Pillow 12.3.0, NumPy 2.4.6, Numba 0.66.0 환경에서 이전 전 243개와 이전 후

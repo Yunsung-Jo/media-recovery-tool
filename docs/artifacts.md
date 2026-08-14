@@ -3,9 +3,10 @@
 이 문서는 명령이 만드는 파일, 결과 분류와 provenance 계약의 지속 정본이다. CLI 인자와 edge case의 세부
 Current 계약은 [carve spec](specs/0001-carve.md)과 [reconstruct spec](specs/0002-recover.md)을 함께 본다.
 
-`Current`는 현재 구현이 실제로 쓰는 디렉터리·CSV와 T-0003에서 추가한 격리된 case/run 기반이다.
-`Planned`는 [전환 계획](transition-plan.md)의 forensic artifact 목표이며 아직 구현되지 않았다. case/run
-Python API는 구현됐지만 기존 CLI에 자동 연결되지 않았으므로 둘의 출력 계약을 구분한다.
+`Current`는 현재 명령의 디렉터리·CSV, T-0003의 격리된 case/run 기반과 T-0004의 forensic record·NPZ
+Python API를 함께 설명한다. 이 내부 API는 아직 기존 CLI에 자동 연결되지 않았으므로 실제 command 출력과
+독립 기반의 계약을 구분한다. `Planned`는 [전환 계획](transition-plan.md)에 남은 engine integration,
+N-best, preview와 enhancement 목표다.
 
 ## Current
 
@@ -13,9 +14,10 @@ Python API는 구현됐지만 기존 CLI에 자동 연결되지 않았으므로 
 
 - 현재 `carve`, `reconstruct`, `enhance` 실행은 case나 run을 자동 등록하지 않고 사용자가 지정한 출력
   디렉터리에 직접 쓴다.
-- `src/media_recovery/artifacts/`에 case/run, strict JSON/JSONL과 completion seal 기반이 있지만 기존 명령의
-  output을 감싸거나 migration하지 않는다.
-- NPZ, forensic object/result/candidate record와 현재 CLI output의 artifact manifest는 없다.
+- `src/media_recovery/artifacts/`에 case/run, strict JSON/JSONL, completion seal, forensic record와 결정적
+  coefficient NPZ 기반이 있지만 기존 명령의 output을 감싸거나 migration하지 않는다.
+- `objects.jsonl`, `candidates.jsonl`, `results.jsonl`과 object/candidate별 NPZ reader/writer는 내부 API로
+  구현됐다. 현재 CLI는 이 record나 manifest를 실제 결과로 출력하지 않는다.
 - 카빙 파일명은 디스크 이미지 안의 시작 offset을 보존하지만 입력 image hash, 실행 옵션과 git 상태를
   산출물 자체에 기록하지 않는다.
 - reconstruct와 enhance는 CSV 보고서를 쓰지만 선택하지 않은 후보, source bit span, virtual edit와
@@ -55,6 +57,13 @@ work/
 | `case.json` | `media-recovery.case` | `1.0` | [`media-recovery.case-1.0.schema.json`](../schemas/media-recovery.case-1.0.schema.json) |
 | `run.json` | `media-recovery.run` | `1.0` | [`media-recovery.run-1.0.schema.json`](../schemas/media-recovery.run-1.0.schema.json) |
 | `completed.json` | `media-recovery.run-completion` | `1.0` | [`media-recovery.run-completion-1.0.schema.json`](../schemas/media-recovery.run-completion-1.0.schema.json) |
+| `objects.jsonl` record | `media-recovery.object` | `1.0` | [`media-recovery.object-1.0.schema.json`](../schemas/media-recovery.object-1.0.schema.json) |
+| `candidates.jsonl` record | `media-recovery.candidate` | `1.0` | [`media-recovery.candidate-1.0.schema.json`](../schemas/media-recovery.candidate-1.0.schema.json) |
+| `results.jsonl` record | `media-recovery.result` | `1.0` | [`media-recovery.result-1.0.schema.json`](../schemas/media-recovery.result-1.0.schema.json) |
+| coefficient manifest | `media-recovery.coefficient-manifest` | `1.0` | [`media-recovery.coefficient-manifest-1.0.schema.json`](../schemas/media-recovery.coefficient-manifest-1.0.schema.json) |
+
+forensic record의 공통 source span·hypothesis·edit·segment·placement 정의는 함께 배포하는
+[`media-recovery.forensic-defs-1.0.schema.json`](../schemas/media-recovery.forensic-defs-1.0.schema.json)에 있다.
 
 `case.json`은 `case_id`, label, 생성 시각과 source의 platform-native 절대 경로·전체 SHA-256·byte 크기를
 기록한다. case ID는 `case-<SHA-256 앞 20자리>`다. 같은 ID 디렉터리가 존재하면 전체 hash와 크기를 읽어
@@ -75,9 +84,11 @@ discovery는 부모가 없고 그 밖의 stage는 최소 한 부모가 필요하
 rendering은 completed reconstruction, enhancement는 completed reconstruction 또는 rendering만 부모로
 받는다. 모든 부모는 같은 case 아래에서 completion seal 검증을 통과해야 한다.
 
-reader는 같은 schema major의 minor version을 읽고 알 수 없는 선택 필드는 보존한다. 더 높은 major,
-알 수 없는 `required_features`와 enum은 거부한다. schema field 제거·이름/의미·참조 규칙 변경은 major,
-기존 의미를 유지하는 선택 field 추가는 minor 변경이다.
+schema version은 각 숫자가 0이 아니면 선행 0이 없는 `major.minor` 십진 표기를 사용한다. reader는 같은
+schema major의 minor version을 읽고 알 수 없는 선택 필드는 무시할 수 있다. 현재 dict 기반 case/run
+reader는 이를 보존하지만 typed forensic reader는 알 수 없는 선택 field를 domain value에 싣지 않는다.
+더 높은 major, 알 수 없는 `required_features`와 enum은 거부한다. schema field 제거·이름/의미·참조 규칙
+변경은 major, 기존 의미를 유지하는 선택 field 추가는 minor 변경이다.
 
 배포 run schema는 stage별 parent 존재 조건, lifecycle status와 timestamp·attempt 조합, attempt outcome과
 종료 시각의 동시 설정, dirty flag와 patch 존재 관계를 검증한다. attempt 배열에서 현재 attempt가 마지막인지,
@@ -122,8 +133,108 @@ canonical JSONL API는 records를 모두 수집한 coordinator가 caller의 stab
 tie-break로 정렬한 뒤 같은 디렉터리의 임시 파일에 쓰고 `os.replace`로 확정한다. sort key는 null, boolean,
 integer, finite float, string과 이들의 sequence만 허용해 전순서를 보장한다. record 수집·key 검증·직렬화·
 쓰기·replace 실패 시 부분 destination을 노출하지 않고 기존 destination이 있으면 보존한다. worker용
-공유-file append API는 제공하지 않는다. 어떤 stage record를 `objects.jsonl`, `results.jsonl`,
-`candidates.jsonl`에 쓸지와 field schema는 T-0004 이후 범위다.
+공유-file append API는 제공하지 않는다. discovery run의 `objects.jsonl`은 disk offset·object ID,
+reconstruction run의 `candidates.jsonl`은 object ID·candidate ordinal·fingerprint,
+`results.jsonl`은 object ID로 정렬한다. writer는 record type과 stage를 확인하고 reader는 완료 run이면 기존
+completion seal부터 검증한다.
+
+#### Forensic domain과 좌표·provenance
+
+[`domain/forensics.py`](../src/media_recovery/domain/forensics.py)는 object, hypothesis assertion, source span,
+decode segment, virtual edit, placement, candidate, result와 coefficient manifest의 불변 model을 제공한다.
+`DecodeSegment`는 생성 시 source span/edit ID collection을 tuple로 복사해 caller의 mutable input과 alias되지
+않는다.
+
+- object ID는 `jpeg|avi-<disk absolute start offset 16자리 소문자 hex>`이며 offset 범위는 `0..2^64-1`이다.
+- candidate ordinal은 `0..999`, ID는 `cand-000..cand-999`다. ID는 case/run/object 범위에서만 유효하다.
+- candidate fingerprint는 object ID와 ID순으로 정규화한 hypothesis, source span, decode segment,
+  virtual edit, placement를 `media-recovery.candidate-fingerprint` `1.0` strict canonical JSON으로 직렬화한
+  전체 SHA-256이다. 마지막 LF는 hash 입력이고 ordinal/ID, engine·policy version, 선택 점수와 NPZ 물리
+  hash는 입력이 아니다.
+- provenance는 `observed`, `decoded`, `inferred`, `generated`다. observed `SourceSpan`, decoded
+  `DecodeSegment`·coefficient artifact, inferred `VirtualEdit`·`Placement`처럼 한 값에는 한 provenance만
+  둔다. hypothesis의 각 assertion도 observed 또는 inferred 하나만 갖는다.
+
+source range는 half-open `[start,end)`이고 `disk_byte`, `object_raw_byte`, `raw_entropy_bit`,
+`destuffed_bit`, `virtual_work_bit`를 별도 좌표 공간으로 둔다. observed source span은 수정되지 않은 disk
+byte와 object raw byte의 같은 길이 범위가 정본이며 optional raw/destuffed bit mapping을 가진다. 불연속
+source는 `span-000000...` 여러 개로 보존한다. 한 record 안의 disk/object raw range와 존재하는
+raw entropy/destuffed range는 각각 서로 겹칠 수 없다. virtual edit는 편집 전 source range, 편집 뒤
+`virtual_work_bit` range, 종류와 non-empty assumption을 기록한다. placement는 component source block과
+raster block row/column을 연결할 뿐 source 좌표를 바꾸지 않는다. reader/writer는 observed disk range의
+끝이 case source byte 크기를 넘지 않는지 확인한다. candidate의 첫 source span은 object ID가 담은 disk
+start offset에서 시작한다. `parent_object_id`는 같은 `objects.jsonl`의 object 하나에 해소돼야 하고 parent
+graph는 cycle이 없어야 한다. reconstruction candidate/result의 object ID는 부모 discovery의 object
+record 하나에 정확히 해소돼야 하며 없거나 여러 부모 record에 중복된 object ID는 거부한다.
+
+#### Result 직교 상태
+
+result는 다음 여섯 field를 별도로 보존한다.
+
+```text
+execution_status: completed | interrupted | error
+support_status: supported | partially_supported | unsupported
+decode_extent: complete | partial | none | not_attempted
+selection_status: source_candidate_selected | reconstruction_candidate_selected |
+                  no_supported_candidate | not_applicable
+header_basis: source | source_repaired | standard_assumption |
+              donor_assumption | hypothesis | none
+artifact_status: complete | partial | unavailable
+```
+
+unsupported 완료 결과는 `not_attempted/not_applicable/none/unavailable` 조합만 쓴다. selected candidate는
+completed execution, complete/partial decode, non-null ID·fingerprint와 complete/partial artifact를 요구하며
+source candidate는 source header basis만 허용한다. `no_supported_candidate`는 none/partial decode와
+partial/unavailable artifact를, interrupted/error는 non-complete decode와 partial/unavailable artifact를
+허용한다. complete/partial decode에는 non-`none` header가 필요하고 complete artifact는 selected
+candidate가 있을 때만 가능하다. JSON Schema와 Python reader는 이 상태 행렬의 같은 조합을 허용한다.
+`interventions`는 byte substitution/deletion/insertion, bit resync, DC reset, MCU placement의 중복 없는
+목록이며 reader는 중복을 정규화하지 않고 거부한다.
+
+#### Coefficient NPZ와 manifest
+
+coefficient artifact는 object 또는 candidate 하나에 귀속된 압축 NPZ다. canonical coefficient는 natural
+DCT `(v,u)` 순서의 **DQT 적용 전 quantized coefficient**다. 세 component에 다음 여섯 array, 총 18개가
+항상 있어야 한다.
+
+| array | shape | dtype | 의미 |
+|---|---|---|---|
+| `coef_<c>` | `(source blocks, 8, 8)` | `<i4` | quantized coefficient; invalid sentinel `0` |
+| `coefficient_validity_<c>` | 같은 shape | `|u1` | `0=missing`, `1=source_backed` |
+| `block_validity_<c>` | `(source blocks,)` | `|u1` | `0=missing`, `1=partial`, `2=complete` |
+| `source_span_ref_range_<c>` | `(source blocks,8,8,2)` | `<i8` | flattened ref의 `(start,count)` |
+| `source_span_refs_<c>` | `(reference count,)` | `<i4` | normalized manifest span table index |
+| `placement_owner_<c>` | `(raster block rows, columns)` | `<i4` | source block index 또는 sentinel |
+
+`<c>`는 `y`, `cb`, `cr`다. coefficient validity 1은 한 개 이상의 observed span ref가 있을 때만 가능하다.
+missing coefficient는 ref range `(-1,0)`이고 여러 불연속 span은 ordered index 목록으로 남긴다. block
+validity는 source-backed coefficient가 각각 0개, 1..63개, 64개인지와 정확히 일치한다. placement owner의
+`>=0`은 같은 component의 source block index, `-1`은 gap, `-2`는 둘 이상의 placement가 같은 raster slot을
+주장한 unresolved overlap이다. 다른 음수와 source block 중복 소유는 금지한다.
+
+manifest는 object/candidate record의 `coefficient_manifest` field에 embedded되며 별도 manifest file은 쓰지
+않는다. owner, normalized source span ID table, run-relative POSIX NPZ path, SHA-256, byte 크기, component
+layout과 이름순 array name·shape·dtype을 기록한다. reader는 path가 run 밖으로 나가지 않는지,
+hash·크기·ZIP member·array 집합·shape·dtype과 위 의미 불변조건을 확인하고 반드시
+`numpy.load(..., allow_pickle=False)`를 사용한다. object dtype과 pickle, unknown/missing array를 거부한다.
+POSIX path는 canonical relative syntax여야 하며 `..`, `.` segment, 빈 segment, backslash, colon과 Windows
+drive/NTFS alternate data stream 문법, C0/DEL control character와 symlink component를 허용하지 않는다. 같은 object/candidate record
+file의 서로 다른 owner는 대소문자 등 filesystem 정규화 뒤 동일한 물리 NPZ path를 공유할 수 없다. object
+owner NPZ는 discovery run, candidate owner NPZ는 reconstruction run에서만 유효하다.
+
+writer는 fixed-width big-endian integer를 little-endian C-contiguous array로 정규화하고 NPY member 이름순,
+NPY 2.0 header, ZIP timestamp `1980-01-01 00:00:00`, 고정 권한·deflate level 9로 기록한다. reader도 각
+member의 NPY version이 `2.0`인지 확인한다. 같은 canonical 입력은 같은 NPZ byte를 만든다. destination과
+같은 디렉터리에서 staging·fsync한 뒤 `os.replace`하며 실패 시 기존 destination과 임시 파일 정리를 보존한다.
+
+JSON Schema는 field, enum, array 이름·rank·dtype과 result 상태 조합을 검증한다. range의 `end >= start`,
+source span 좌표 중복, object/candidate ID 파생 관계, normalized ordinal·참조, candidate fingerprint 재계산,
+component간 shape 관계, manifest owner와 record 일치, 외부 NPZ hash·크기·NPY version·내용, record file 안
+filesystem-normalized NPZ path 고유성, object parent graph와 `results.jsonl`의 candidate count·reference는
+다른 file이나 값 사이 계산이 필요하므로 Python reader가 추가 검증한다. case source 크기와 disk span,
+reconstruction parent의 object ID 해소, filesystem symlink 여부도 같은 외부 검증 경계다. 반면 NPZ path의
+canonical relative syntax와 traversal·drive prefix·control character 거부는 배포 schema와 Python domain이
+함께 검증한다.
 
 ### `media-recovery carve`
 
@@ -201,36 +312,20 @@ band_std0, band_res, dmatch, secs
 
 ### Current 산출물의 한계
 
-- case/run API는 입력 image SHA-256과 크기, tool·engine·policy·schema version, environment·dirty patch·
-  옵션과 lineage를 기록하지만 현재 CLI는 아직 이 API를 호출하지 않는다.
-- 같은 offset의 객체가 여러 boundary/header 가설을 가질 수 있다는 구조가 없다.
-- 재인코딩 JPEG와 CSV가 중심이며 quantized coefficient, block/component validity, gap owner와 source span을
-  보존하지 않는다.
-- strict JSONL 기반은 worker 완료 순서와 무관한 ordering을 제공하지만 현재 CSV ordering은 canonical
+- case/run·forensic record·NPZ API는 lineage, hypothesis, source span, coefficient·validity와 placement owner를
+  표현하고 검증할 수 있지만 현재 CLI와 reconstruction engine은 아직 이 API를 호출하지 않는다.
+- 따라서 실제 `carve`/`reconstruct` output은 여전히 재인코딩 JPEG·CSV 중심이고 후보나 NPZ를 보존하지
+  않는다. current output directory도 completion seal과 lineage로 보호되지 않는다.
+- domain model은 복수 hypothesis/candidate를 표현하지만 현재 single-best engine에서 N-best를 생성·선택하는
+  algorithm이나 evidence policy는 구현하지 않았다.
+- strict JSONL 기반은 worker 완료 순서와 무관한 ordering을 제공하지만 현재 CLI CSV ordering은 canonical
   record로 규정하지 않는다.
-- case/run lifecycle은 구현됐지만 현재 CLI 출력 디렉터리는 완료 run 불변성과 lineage로 보호되지 않는다.
-- preview, forensic result와 enhancement가 별도 provenance 계층으로 정규화되어 있지 않다.
+- preview, forensic result와 enhancement를 실제 stage artifact로 연결하는 provenance 계층은 아직 없다.
 
 ## Planned — 아직 구현되지 않음
 
-이 절은 T-0003이 구현한 provenance 기반 위에 남은 목표 계약을 보존한다. T-0004는 대규모 array와
-forensic domain schema를 테스트와 함께 확정한다. 아래 forensic record 이름과 field는 현재
-writer/reader가 지원하는 schema가 아니다.
-
-### provenance 계층
-
-장기 artifact는 값의 출처 상태를 분리한다.
-
-| Planned 상태 | 의미 |
-|---|---|
-| `observed` | 수정되지 않은 disk/object byte와 span |
-| `decoded` | source bit에 대응해 실제 디코드한 coefficient/component |
-| `inferred` | header, DC reset, placement처럼 근거에서 추론한 값 |
-| `generated` | 중립 채움, gap 표시, 보간, thumbnail/AI enhancement 값 |
-
-canonical coefficient는 DQT 적용 전 quantized DCT coefficient로 두고, DQT hypothesis와 RGB·preview는 별도
-파생 참조로 표현할 계획이다. 정확한 block/coefficient validity와 span shape는 T-0004 전에는 확정된 Current
-계약이 아니다.
+T-0004까지 case/run, forensic domain·record와 coefficient NPZ의 독립 기반을 구현했다. 이 절은 그 기반을
+실제 pipeline에 연결하고 알고리즘이 채울 값과 파생 artifact를 만드는 남은 목표만 설명한다.
 
 ### case/run과 현재 CLI 연결
 
@@ -239,40 +334,25 @@ case 등록과 stage run lifecycle은 내부 API로 구현됐지만 CLI interfac
 시점부터 stage artifact를 work run에 쓰는지 별도로 정해야 한다. 명시적 source import와 공유용 case path
 redaction도 아직 구현하지 않았다.
 
-### Planned canonical record
-
-T-0003의 JSON/JSONL encoding 위에 다음 stage record와 대규모 artifact를 추가할 계획이다.
-
-- `objects.jsonl`, `results.jsonl`, `candidates.jsonl`: record 단위 streaming JSONL
-- coefficient와 validity: object/candidate별 압축 NPZ
-- CSV와 preview: 사람이 보는 파생 산출물, canonical record 아님
-
-JSONL UTF-8/LF, non-finite number 금지, coordinator의 결정적 ordering과 임시 파일 후 원자적 교체는
-Current 기반이다. `objects.jsonl`, `results.jsonl`, `candidates.jsonl`의 record schema와 NPZ
-`allow_pickle=False`, 고정 dtype/byte order, array 이름·shape·dtype과 enum 조합은 구현 Task 전까지
-Planned다.
-
-### Planned 식별과 재현 정보
+### Planned stage integration과 재현 정보
 
 source hash 기반 case ID와 UTC 시각·random suffix run ID, run metadata의 source·version·options·seed·
-dirty patch는 Current다. media type과 disk absolute offset 기반 object ID, run 내부 candidate ordinal과
-candidate fingerprint는 아직 Planned다. ID는 재현 정보를 압축하지 않는다.
+dirty patch, media type·disk offset 기반 object ID, candidate ordinal·fingerprint는 Current다. ID는 재현
+정보를 압축하지 않는다.
 
-- 후속 domain record는 object ID와 candidate fingerprint를 정의한다.
 - `environment`는 현재 non-empty strict JSON object이고 platform·Python·library 등 stage별 표준 key는 실제
   stage integration Task에서 확정한다.
-- object/candidate artifact hash는 해당 record schema와 함께 확정한다.
+- T-0006은 current single-best 결과가 실제 source span·coefficient·placement를 새 record/NPZ에 채우고
+  reconstruction run을 완료하도록 연결한다.
+- T-0007~T-0009는 N-best boundary/header/entropy/placement와 evidence policy를 구현한다. 현재 schema가
+  복수 candidate를 표현할 수 있다는 사실만으로 algorithm이 구현됐다고 보지 않는다.
 
 ### Planned 결과·preview·enhancement 분리
 
-현재 여섯 action을 하나의 canonical 상태로 유지하지 않고 execution, support, decode extent, selection,
-header basis와 artifact availability를 직교 필드로 나누는 방향이다. 사용자용 요약 label은 이 필드에서
-파생한다. 정확한 enum과 허용 조합은 schema Task가 확정한다.
-
-forensic bundle은 source span, hypothesis, coefficient·validity, edit, placement와 evidence를 보존한다.
-preview는 이 bundle을 PNG 등으로 표시하는 파생물이고, enhancement는 preview에서 다시 파생된 generated
-값이다. Planned `render`는 reconstruction을 다시 실행하지 않고 같은 artifact에 다른 표시 policy를
-적용하는 명령이며 T-0010 전에는 구현되어 있지 않다.
+직교 result enum과 허용 조합은 Current schema지만 현재 여섯 CLI action을 이 상태로 실제 변환하는
+integration과 사용자용 파생 label은 아직 없다. preview는 forensic bundle을 PNG 등으로 표시하는 파생물,
+enhancement는 preview에서 다시 파생된 generated 값으로 남긴다. Planned `render`는 reconstruction을 다시
+실행하지 않고 같은 artifact에 다른 표시 policy를 적용하는 명령이며 T-0010 전에는 구현되어 있지 않다.
 
 ## Legacy 문서 유지
 

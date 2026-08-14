@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://media-recovery-tool.local/schemas/media-recovery.object-1.0.schema.json",
+  "title": "Media Recovery Tool forensic object record 1.0",
+  "$comment": "Object ID derivation, span ordering, range arithmetic, references, and manifest file integrity are enforced by the Python reader.",
+  "type": "object",
+  "required": [
+    "schema", "schema_version", "required_features", "engine_version", "policy_version",
+    "object_id", "media_type", "disk_offset", "provenance", "source_spans", "hypotheses",
+    "parent_object_id", "coefficient_manifest"
+  ],
+  "properties": {
+    "schema": {"const": "media-recovery.object"},
+    "schema_version": {"type": "string", "pattern": "^1\\.(0|[1-9][0-9]*)$"},
+    "required_features": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "engine_version": {"type": "string", "minLength": 1},
+    "policy_version": {"type": "string", "minLength": 1},
+    "object_id": {"type": "string", "pattern": "^(jpeg|avi)-[0-9a-f]{16}$"},
+    "media_type": {"enum": ["jpeg", "avi"]},
+    "disk_offset": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+    "provenance": {"const": "observed"},
+    "source_spans": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "https://media-recovery-tool.local/schemas/media-recovery.forensic-defs-1.0.schema.json#/$defs/sourceSpan"}
+    },
+    "hypotheses": {
+      "type": "array",
+      "items": {"$ref": "https://media-recovery-tool.local/schemas/media-recovery.forensic-defs-1.0.schema.json#/$defs/hypothesis"}
+    },
+    "parent_object_id": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^(jpeg|avi)-[0-9a-f]{16}$"}
+      ]
+    },
+    "coefficient_manifest": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "https://media-recovery-tool.local/schemas/media-recovery.coefficient-manifest-1.0.schema.json"}
+      ]
+    }
+  },
+  "additionalProperties": true
+}

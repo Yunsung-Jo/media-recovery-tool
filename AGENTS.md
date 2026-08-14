@@ -17,11 +17,15 @@ baseline JPEG를 구조적으로 복구한다. 저장소와 Python package 정�
 4. 현재 구현을 이해할 때 `docs/design.md`, `docs/artifacts.md`, `docs/status.md`, 필요하면 `docs/specs/`
 
 현재 활성 Task는 없다. 완료한
-[`T-0003 work와 run lineage·lifecycle 및 JSONL 기반`](docs/tasks/completed/2026/T-0003-work-run-lineage-lifecycle-and-jsonl.md)은
-기존 CLI를 바꾸지 않고 `work/`, source hash case, 시작 전 source 재검증, stage run, strict JSON/JSONL과
-completion seal을 구현하고 legacy inventory를 만들었다. case/run은 아직 기존 명령에 연결되지 않았고
-forensic domain·NPZ는 구현되지 않았다. 다음 계획 작업은 T-0004이고 실제 시작할 때 합의한 범위로 활성
-Task를 만든다.
+[`T-0004 포렌식 도메인 모델과 NPZ schema`](docs/tasks/completed/2026/T-0004-forensic-domain-and-npz-schema.md)는
+기존 CLI와 engine을 바꾸지 않고 object/result/candidate·source span·edit·placement domain, schema 1.0과
+DQT 적용 전 coefficient·validity·span ref·owner의 결정적 압축 NPZ reader/writer를 구현했다. observed span
+좌표 중복·source bounds, 같은 file의 object parent 해소·cycle, reconstruction parent object 해소,
+filesystem-normalized owner별 NPZ path 고유성, NPY 2.0, owner-stage와 traversal/control/symlink/NTFS ADS
+거부도 reader/writer에서 검증한다. `DecodeSegment`의 source/edit 참조는 tuple snapshot으로 고정하고 parent
+graph는 입력 깊이에 무관한 반복형 검증을 사용한다. case/run과 forensic
+artifact 기반은 아직 기존 명령에 연결되지 않았고 N-best는 구현되지 않았다.
+다음 계획 작업은 T-0005이고 실제 시작할 때 합의한 범위로 활성 Task를 만든다.
 
 문서가 충돌하면 다음 우선순위를 사용한다.
 
@@ -36,7 +40,9 @@ Task를 만든다.
 - `media-recovery carve`: 디스크 이미지에서 JPEG·AVI 추출
 - `media-recovery reconstruct`: 추출한 JPEG를 resync·헤더 복구로 복원
 - `media-recovery enhance`: EXIF thumbnail 기반 선택적 후처리
-- `src/media_recovery/artifacts/`: 격리된 case/run lineage·lifecycle, strict JSON/JSONL과 completion seal
+- `src/media_recovery/artifacts/`: 격리된 case/run lineage·lifecycle, strict JSON/JSONL, completion seal과
+  forensic record·NPZ I/O
+- `src/media_recovery/domain/`: scanner `FileHit`과 forensic object/candidate/result·좌표·provenance model
 - `src/media_recovery/`: CLI, 스캐너, 추출기, JPEG 디코더, 복구 엔진
 - `tests/`: 회귀 테스트
 - `docs/`: Current/Planned 설계·산출물·평가·상태 정본, 전환 계획, Task, 현행 spec, 역사 ADR, 포맷 메모

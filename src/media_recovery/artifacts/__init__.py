@@ -10,6 +10,16 @@ from media_recovery.artifacts.cases import (
     verify_case_source,
 )
 from media_recovery.artifacts.io import ArtifactFormatError, read_jsonl
+from media_recovery.artifacts.forensics import (
+    read_candidates_jsonl,
+    read_coefficient_npz,
+    read_objects_jsonl,
+    read_results_jsonl,
+    write_candidates_jsonl,
+    write_coefficient_npz,
+    write_objects_jsonl,
+    write_results_jsonl,
+)
 from media_recovery.artifacts.runs import (
     RunCompatibilityError,
     RunStateError,
@@ -35,7 +45,11 @@ __all__ = [
     "initialize_work_root",
     "interrupt_run",
     "read_case",
+    "read_candidates_jsonl",
+    "read_coefficient_npz",
     "read_jsonl",
+    "read_objects_jsonl",
+    "read_results_jsonl",
     "read_run",
     "register_case",
     "resolve_work_root",
@@ -43,4 +57,8 @@ __all__ = [
     "start_run",
     "verify_case_source",
     "write_run_jsonl",
+    "write_candidates_jsonl",
+    "write_coefficient_npz",
+    "write_objects_jsonl",
+    "write_results_jsonl",
 ]

@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://media-recovery-tool.local/schemas/media-recovery.coefficient-manifest-1.0.schema.json",
+  "title": "Media Recovery Tool coefficient NPZ manifest 1.0",
+  "$comment": "Cross-array shape equality, source-span reference bounds, and NPZ file integrity are enforced by the Python reader.",
+  "type": "object",
+  "required": [
+    "schema",
+    "schema_version",
+    "required_features",
+    "owner",
+    "source_span_ids",
+    "npz",
+    "arrays",
+    "components",
+    "provenance",
+    "coefficient_basis"
+  ],
+  "properties": {
+    "schema": {"const": "media-recovery.coefficient-manifest"},
+    "schema_version": {"type": "string", "pattern": "^1\\.(0|[1-9][0-9]*)$"},
+    "required_features": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "owner": {
+      "type": "object",
+      "required": ["kind", "object_id", "candidate_id", "candidate_fingerprint"],
+      "properties": {
+        "kind": {"enum": ["object", "candidate"]},
+        "object_id": {"type": "string", "pattern": "^(jpeg|avi)-[0-9a-f]{16}$"},
+        "candidate_id": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^cand-[0-9]{3}$"}
+          ]
+        },
+        "candidate_fingerprint": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "object"}}, "required": ["kind"]},
+          "then": {
+            "properties": {
+              "candidate_id": {"type": "null"},
+              "candidate_fingerprint": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "candidate"}}, "required": ["kind"]},
+          "then": {
+            "properties": {
+              "candidate_id": {"type": "string", "pattern": "^cand-[0-9]{3}$"},
+              "candidate_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            }
+          }
+        }
+      ],
+      "additionalProperties": true
+    },
+    "source_span_ids": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^span-[0-9]{6}$"},
+      "uniqueItems": true
+    },
+    "npz": {
+      "type": "object",
+      "required": ["path", "sha256", "size"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 5,
+          "pattern": "^(?!.*[\\u0000-\\u001F\\u007F])(?!.*:)(?!/)(?!\\.\\.?(/|$))(?!.*(/)\\.\\.?(/|$))(?!.*//)(?!.*\\\\).+\\.npz$"
+        },
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": true
+    },
+    "arrays": {
+      "type": "array",
+      "minItems": 18,
+      "maxItems": 18,
+      "items": {
+        "type": "object",
+        "required": ["name", "shape", "dtype"],
+        "properties": {
+          "name": {
+            "enum": [
+              "block_validity_y", "block_validity_cb", "block_validity_cr",
+              "coef_y", "coef_cb", "coef_cr",
+              "coefficient_validity_y", "coefficient_validity_cb", "coefficient_validity_cr",
+              "placement_owner_y", "placement_owner_cb", "placement_owner_cr",
+              "source_span_ref_range_y", "source_span_ref_range_cb", "source_span_ref_range_cr",
+              "source_span_refs_y", "source_span_refs_cb", "source_span_refs_cr"
+            ]
+          },
+          "shape": {
+            "type": "array",
+            "items": {"type": "integer", "minimum": 0}
+          },
+          "dtype": {"enum": ["<i4", "<i8", "|u1"]}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {"name": {"enum": ["coef_y", "coef_cb", "coef_cr"]}},
+              "required": ["name"]
+            },
+            "then": {
+              "properties": {
+                "dtype": {"const": "<i4"},
+                "shape": {
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "prefixItems": [{"type": "integer", "minimum": 0}, {"const": 8}, {"const": 8}]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "name": {"enum": ["coefficient_validity_y", "coefficient_validity_cb", "coefficient_validity_cr"]}
+              },
+              "required": ["name"]
+            },
+            "then": {
+              "properties": {
+                "dtype": {"const": "|u1"},
+                "shape": {
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "prefixItems": [{"type": "integer", "minimum": 0}, {"const": 8}, {"const": 8}]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {"name": {"enum": ["block_validity_y", "block_validity_cb", "block_validity_cr"]}},
+              "required": ["name"]
+            },
+            "then": {
+              "properties": {
+                "dtype": {"const": "|u1"},
+                "shape": {"minItems": 1, "maxItems": 1}
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "name": {"enum": ["source_span_ref_range_y", "source_span_ref_range_cb", "source_span_ref_range_cr"]}
+              },
+              "required": ["name"]
+            },
+            "then": {
+              "properties": {
+                "dtype": {"const": "<i8"},
+                "shape": {
+                  "minItems": 4,
+                  "maxItems": 4,
+                  "prefixItems": [
+                    {"type": "integer", "minimum": 0}, {"const": 8}, {"const": 8}, {"const": 2}
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {"name": {"enum": ["source_span_refs_y", "source_span_refs_cb", "source_span_refs_cr"]}},
+              "required": ["name"]
+            },
+            "then": {
+              "properties": {
+                "dtype": {"const": "<i4"},
+                "shape": {"minItems": 1, "maxItems": 1}
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {"name": {"enum": ["placement_owner_y", "placement_owner_cb", "placement_owner_cr"]}},
+              "required": ["name"]
+            },
+            "then": {
+              "properties": {
+                "dtype": {"const": "<i4"},
+                "shape": {"minItems": 2, "maxItems": 2}
+              }
+            }
+          }
+        ],
+        "additionalProperties": true
+      },
+      "allOf": [
+        {"contains": {"properties": {"name": {"const": "block_validity_y"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "block_validity_cb"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "block_validity_cr"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "coef_y"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "coef_cb"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "coef_cr"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "coefficient_validity_y"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "coefficient_validity_cb"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "coefficient_validity_cr"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "placement_owner_y"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "placement_owner_cb"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "placement_owner_cr"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "source_span_ref_range_y"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "source_span_ref_range_cb"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "source_span_ref_range_cr"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "source_span_refs_y"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "source_span_refs_cb"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"properties": {"name": {"const": "source_span_refs_cr"}}, "required": ["name"]}, "minContains": 1, "maxContains": 1}
+      ]
+    },
+    "components": {
+      "type": "object",
+      "required": ["y", "cb", "cr"],
+      "properties": {
+        "y": {"$ref": "#/$defs/componentLayout"},
+        "cb": {"$ref": "#/$defs/componentLayout"},
+        "cr": {"$ref": "#/$defs/componentLayout"}
+      },
+      "additionalProperties": false
+    },
+    "provenance": {"const": "decoded"},
+    "coefficient_basis": {"const": "quantized_dct_before_dqt"}
+  },
+  "$defs": {
+    "componentLayout": {
+      "type": "object",
+      "required": ["source_block_count", "raster_block_rows", "raster_block_columns"],
+      "properties": {
+        "source_block_count": {"type": "integer", "minimum": 0},
+        "raster_block_rows": {"type": "integer", "minimum": 0},
+        "raster_block_columns": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
