@@ -126,8 +126,8 @@ fixture를 `work/`에 두지 않는다. 기본 위치는 명령을 실행한 현
 - 비연속 클러스터에 저장된 단편화 객체를 자동으로 이어 붙이지 않는다.
 - 다만 장기 object model은 한 객체가 여러 source span을 가질 수 있도록 확장 가능해야 한다.
 
-초기 패키지 이전에서는 현재 파일을 일대일로 이동하고 내부 알고리즘을 동시에 재작성하지 않는다.
-특히 `reconstruction/engine.py`의 책임 분리는 별도 Task에서 수행한다.
+초기 패키지 이전에서는 당시 파일을 일대일로 이동하고 내부 알고리즘을 동시에 재작성하지 않았다.
+`reconstruction/engine.py`의 책임 분리는 T-0005에서 현행 single-best 동작 보존 범위로 완료했다.
 
 ## 5. 목표 파이프라인
 
@@ -701,8 +701,8 @@ placement/gap, top-1/top-K 정확도를 측정한다. 정답 원본이 없는 �
 | T-0009 | 반복 placement와 evidence 평가 | AI enhancement |
 | T-0010 | preview와 thumbnail enhancement 분리 | enhancement를 source로 주장 |
 
-Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를 자동 확장하지 않는다. T-0001~T-0004는
-완료됐으며 다음 계획 작업은 T-0005다. 새 활성 Task 문서는 실제 작업을 시작할 때 만든다.
+Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를 자동 확장하지 않는다. T-0001~T-0005는
+완료됐으며 다음 계획 작업은 T-0006이다. 새 활성 Task 문서는 실제 작업을 시작할 때 만든다.
 
 ## 15. 전환 중 지켜야 할 금지 사항
 
@@ -735,4 +735,8 @@ Task 번호는 의존관계를 설명하며 구현 중 발견만으로 범위를
   부모 discovery에 해소되지 않는 object ID, filesystem alias를 포함한 owner별 NPZ path 중복,
   비정규 NPY version과 intervention 중복, owner-stage 불일치와 traversal/control/symlink/NTFS ADS path를
   거부한다. decode segment의 source/edit reference는 tuple snapshot으로 고정한다.
-  기존 CLI와 engine에는 연결하지 않았고 다음 계획 작업은 T-0005의 현행 engine 동작 보존 책임 분리다.
+  기존 CLI와 engine에는 연결하지 않았다.
+- T-0005에서 현행 single-best 결과와 legacy output byte를 보존하며 RGB metrics, entropy edit/resync,
+  placement, header/normal 선택, legacy materialization과 공개 façade를 비순환 모듈로 분리했다.
+  output-neutral immutable `SingleBestResult`를 추가했지만 forensic record로 변환하지 않았고 N-best도
+  구현하지 않았다. 다음 계획 작업은 T-0006의 현재 single-best forensic artifact 출력이다.

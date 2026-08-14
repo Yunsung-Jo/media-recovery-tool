@@ -207,6 +207,10 @@ RGB 128 MCU로 남기고 겹침에서는 뒤 밴드가 앞 밴드의 경계 쪽 
 ## 사용하는 모듈
 
 - `media_recovery/formats/jpeg/baseline_decoder.py` — baseline JPEG 헤더·엔트로피 디코더
-- `media_recovery/reconstruction/engine.py` — 바이트 편집, 재동기, 분류와 저장
+- `media_recovery/reconstruction/engine.py` — 기존 Python 호출 표면을 유지하는 façade
+- `media_recovery/reconstruction/entropy.py` — byte 편집, bit resync와 decode segment 복구 loop
+- `media_recovery/reconstruction/placement.py` — MCU owner 배치와 행 구조 보정·안전 평가
+- `media_recovery/reconstruction/single_best.py` — header/정상 경로 선택과 action 판정
+- `media_recovery/reconstruction/legacy_output.py` — JPEG encoding과 기존 action별 저장
 - `media_recovery/reconstruction/header_hypotheses.py` — 헤더 후보 재구성과 구조 게이트
 - [포맷 메모](../format-notes.md) — 구현이 전제하는 JPEG 사실

@@ -72,6 +72,37 @@ sandbox network가 build dependency 다운로드를 막아 실패했다. 허용�
 `setuptools>=68` 선언을 사용해 성공했다. 이는 schema/model/I/O 계약과 기존 code 회귀 0을 검증하지만 현행
 engine이 forensic record를 실제 출력하거나 N-best를 구현했다는 뜻은 아니다.
 
+### T-0005 reconstruction 책임 분리 기준선
+
+T-0005는 개인 자료 없이 Pillow로 만든 baseline JPEG와 결정적 entropy/header 손상, truncation과
+monkeypatch한 공간 보정·worker 예외를 사용해 책임 이동 전 snapshot을 먼저 고정했다. 비교는 모두
+`time_budget=0`이고 `recover_sec`만 제외했다.
+
+- 리팩터링 전/후 normalized snapshot SHA-256:
+  `d16d2092beb65ba6aa723d6c9d9d54d37ed839f4ef42cd66c467c1e9738bdf95`
+- 리팩터링 전 HEAD와 현재 `-j 1`·`-j 2`의 정규화 CLI snapshot SHA-256:
+  `becf2619a73034728d9c096ba68ac54189d26f1e194987c85e79d566867db89c`
+- 여섯 action·worker error·placement·header 콘솔과 CSV를 포함한 CLI summary snapshot SHA-256:
+  `ba4c1e89ad619c1a3c83f73c389ef79daab6198fc47575e5ece90f298e1d0cf8`
+- snapshot 범위: `CLEAN`, entropy `RECOVERED`, 공간-only `RECOVERED`, `HEADER_RECOVERED`, `FAILED`,
+  `SKIP_UNDECODABLE`, worker `ERROR`; action·상대 경로·원본 보존 여부·info, `recover()` RGB shape/dtype/byte·
+  segment·stats와 각 output SHA-256
+- output SHA-256은 clean `a6692934…1e17`, entropy `04c62696…e8c`, spatial `db8d02d8…6f75`, header
+  `a47fb760…e3ad`, failed `ddc6d7a…2964`, skip `cee221e7…2dd`, error `3462e4ef…e854`로 전후 같다. full hash는
+  [고정 baseline](../tests/fixtures/reconstruction/t0005-engine-baseline.json)에 있다.
+- 근접: reconstruction façade·result·writer·CLI test 105개 통과
+- T-0003/T-0004 artifact: 98개 통과
+- 전체: Python 3.12.13에서 363개 통과
+- 실제 CLI: 같은 합성 3파일을 `--time-budget 0 -j 1`과 Windows spawn `-j 2`로 실행해 `recover_sec`와
+  worker record 순서만 정규화한 CSV, output hash와 action/header 안정 콘솔 요약이 같았다.
+- wheel: 격리 build에 새 reconstruction Python module 8개와 기존 배포 schema 8개 포함을 확인했다.
+- 내부 result는 `Mapping.items()`를 유지하고 `info_copy()`가 strict JSON artifact handoff를 통과한다. 원본과
+  pickle round-trip 뒤의 RGB·nested array 모두 NumPy write flag 재활성화를 거부한다. Mapping 내용 동등성,
+  pre-frozen wrapper·bytearray·segment DC의 재-snapshot과 unsupported mutable 값 거부도 검증한다.
+
+이 기준선은 single-best 알고리즘·legacy byte가 책임 이동 전후 같고 계산 결과와 저장 경계가 분리됐음을
+보여준다. 복구 정확도 개선, forensic record 실제 출력이나 N-best 구현을 뜻하지 않는다.
+
 ### 패키지 전환 동등성
 
 T-0001은 같은 Python 3.12.13, Pillow 12.3.0, NumPy 2.4.6, Numba 0.66.0 환경에서 이전 전 243개와 이전 후

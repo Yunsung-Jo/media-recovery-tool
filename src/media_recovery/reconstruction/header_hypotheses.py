@@ -14,6 +14,11 @@ from __future__ import annotations
 import numpy as np
 
 from media_recovery.formats.jpeg import baseline_decoder as jd
+from media_recovery.reconstruction import entropy
+from media_recovery.reconstruction.metrics import (
+    gray_fraction,
+    undecoded_fraction,
+)
 
 HDR_LIMIT = 1 << 20          # 헤더 후보 스캔 범위 상한
 FLOOR_CAP = 30               # probe 수락 바닥 상한 (min(30, (총MCU+1)//2))
@@ -288,11 +293,12 @@ def build_decoder(data: bytes, huff, qt, comps, scan, width, height, scan_start)
 
 def opening_probe(dec: jd.Decoder) -> int:
     """비트 0·MCU 0·DC 0에서 경계+rate 켠 clean run — 엔진과 동일 잣대."""
-    from . import engine as rs   # 지연 임포트(순환 회피)
     total = dec.mcus_x * dec.mcus_y
     rate = max(350, int(dec.nbits / total * 4))
     W = int(min(900, total))
-    return rs._probe(dec, dec.buf, 0, 0, np.zeros(3, np.int64), W, rate)
+    return entropy._probe(
+        dec, dec.buf, 0, 0, np.zeros(3, np.int64), W, rate
+    )
 
 
 def _consumed_fraction(data: bytes, dec: jd.Decoder, end_bit: int) -> float:
@@ -331,7 +337,6 @@ def reconstruct(data: bytes, recover_fn):
     """헤더 복구 대결 — 채택 시 (dec, fix_tags, rgb, stats, segments, gray_plain, undec_plain)
     반환, 전 후보 기각 시 None. recover_fn(dec) -> (rgb, stats, segments) — 엔진은 게이트 판정을
     겸해 여기서 1회만 실행되고 결과가 그대로 산출물이 된다(중복 실행 방지)."""
-    from . import engine as rs   # 지연 임포트(순환 회피)
     h = jd.parse_header(data)
     soss = sos_candidates(data)
     sofs = sof_candidates(data)
@@ -385,7 +390,7 @@ def reconstruct(data: bytes, recover_fn):
             while i < len(scored) and scored[i][0] == tier_run:
                 run, v, dec = scored[i]
                 done, eb, _err = dec.decode_full()
-                u_plain = rs.undecoded_fraction(dec.to_rgb())
+                u_plain = undecoded_fraction(dec.to_rgb())
                 tier.append((run, int(done == dec.mcus_x * dec.mcus_y), -u_plain,
                              v, dec, done, eb))
                 i += 1
@@ -400,13 +405,13 @@ def reconstruct(data: bytes, recover_fn):
             dec2 = build_decoder(data, v['huff'], v['qt'], v['comps'], v['scan'],
                                  v['width'], v['height'], v['scan_start'])
             rgb, stats, segs = recover_fn(dec2)
-            u = rs.undecoded_fraction(rgb)
+            u = undecoded_fraction(rgb)
             if u >= ENGINE_UNDEC_MAX:
                 continue
             if u < COMPLETE_UNDEC:
                 cons_bit = max(int(eb), max((int(s[1]) for s in segs), default=0))
                 if _consumed_fraction(data, dec, cons_bit) < FIT_CONSUME_LO:
                     continue
-            gray_plain = rs.gray_fraction(dec.to_rgb())
+            gray_plain = gray_fraction(dec.to_rgb())
             return dec2, _fix_tags(h, v), rgb, stats, segs, gray_plain, -nup
     return None

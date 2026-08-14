@@ -1,4 +1,4 @@
-"""reconstruction.engine 복구 엔진 검증."""
+"""reconstruction entropy 공개 API와 placement 소유 helper 검증."""
 import io
 from types import SimpleNamespace
 
@@ -8,6 +8,7 @@ from PIL import Image
 
 from media_recovery.formats.jpeg import baseline_decoder as jd
 from media_recovery.reconstruction import engine as resync
+from media_recovery.reconstruction import placement
 
 
 def encode(img: np.ndarray, subsampling: int = 1, quality: int = 92) -> bytes:
@@ -81,12 +82,12 @@ def test_explicit_empty_phase_cuts_bypass_all_spatial_correction(monkeypatch):
     def unexpected(*_args, **_kwargs):
         pytest.fail('explicit empty phase_cuts must bypass spatial stages')
 
-    monkeypatch.setattr(resync, '_adaptive_phase_estimate', unexpected)
-    monkeypatch.setattr(resync, '_correct_global_row_shifts', unexpected)
-    monkeypatch.setattr(resync, '_correct_structural_row_shifts', unexpected)
-    monkeypatch.setattr(resync, '_stitch_mcu_row_bands', unexpected)
+    monkeypatch.setattr(placement, '_adaptive_phase_estimate', unexpected)
+    monkeypatch.setattr(placement, '_correct_global_row_shifts', unexpected)
+    monkeypatch.setattr(placement, '_correct_structural_row_shifts', unexpected)
+    monkeypatch.setattr(placement, '_stitch_mcu_row_bands', unexpected)
 
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc)], mcus_x * mcus_y, phase_cuts=[])
 
     assert corrected is rgb
@@ -110,11 +111,11 @@ def test_none_phase_cuts_keeps_legacy_segment_inference(monkeypatch):
     called = {'global': 0}
 
     monkeypatch.setattr(
-        resync, '_adaptive_phase_estimate', lambda *_args, **_kwargs: None)
+        placement, '_adaptive_phase_estimate', lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        resync, '_boundary_signature', lambda *_args, **_kwargs: None)
+        placement, '_boundary_signature', lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        resync, '_layout_quality_safe', lambda *_args, **_kwargs: True)
+        placement, '_layout_quality_safe', lambda *_args, **_kwargs: True)
 
     def global_stage(image, _mcus_x, _mcu_w, _mcu_h, *, base_owner,
                      **_kwargs):
@@ -125,9 +126,9 @@ def test_none_phase_cuts_keeps_legacy_segment_inference(monkeypatch):
             '_final_mcu_drop': 0,
         }
 
-    monkeypatch.setattr(resync, '_correct_global_row_shifts', global_stage)
+    monkeypatch.setattr(placement, '_correct_global_row_shifts', global_stage)
     dc = np.zeros(3, np.int64)
-    _corrected, stats = resync._correct_segment_shifts(
+    _corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc)], mcus_x * mcus_y, phase_cuts=None)
 
     assert called['global'] == 1
@@ -162,16 +163,16 @@ def test_mcu_phase_estimator_finds_scan_row_wrap():
         sy, sx = divmod(source_index, mcus_x)
         packed_tiles[ty, tx] = source[sy, sx]
 
-    left, right = resync._mcu_edge_arrays(
+    left, right = placement._mcu_edge_arrays(
         packed, mcus_x, mcus_y, mcu_w, mcu_h)
-    estimate = resync._estimate_mcu_phase(
+    estimate = placement._estimate_mcu_phase(
         left, right, 0, mcus_x * mcus_y, mcus_x)
     assert estimate is not None and estimate['confident']
     assert estimate['phase'] == phase
 
-    left0, right0 = resync._mcu_edge_arrays(
+    left0, right0 = placement._mcu_edge_arrays(
         base, mcus_x, mcus_y, mcu_w, mcu_h)
-    estimate0 = resync._estimate_mcu_phase(
+    estimate0 = placement._estimate_mcu_phase(
         left0, right0, 0, mcus_x * mcus_y, mcus_x)
     assert estimate0 is not None and estimate0['confident']
     assert estimate0['phase'] == 0
@@ -187,9 +188,9 @@ def test_mcu_phase_estimator_rejects_natural_edge_peak_in_aligned_span():
     dec = jd.Decoder(encode(textured_image(), subsampling=1))
     dec.decode_full()
     rgb = dec.to_rgb()
-    left, right = resync._mcu_edge_arrays(
+    left, right = placement._mcu_edge_arrays(
         rgb, dec.mcus_x, dec.mcus_y, 8 * dec.hmax, 8 * dec.vmax)
-    estimate = resync._estimate_mcu_phase(
+    estimate = placement._estimate_mcu_phase(
         left, right, 72, dec.mcus_x * dec.mcus_y, dec.mcus_x)
     assert estimate is not None
     assert not estimate['confident'] or estimate['phase'] == 0
@@ -216,9 +217,9 @@ def test_shift_rejects_persistent_aligned_vertical_seam():
         mcus_y * mcu_h, mcus_x * mcu_w)[:, :, None].repeat(3, 2)
 
     start = 3 * mcus_x
-    left, right = resync._mcu_edge_arrays(
+    left, right = placement._mcu_edge_arrays(
         rgb, mcus_x, mcus_y, mcu_w, mcu_h)
-    estimate = resync._estimate_mcu_phase(
+    estimate = placement._estimate_mcu_phase(
         left, right, start, mcus_x * mcus_y, mcus_x)
     assert estimate is not None and estimate['confident']
     assert estimate['phase'] != 0  # Deliberately ambiguous internal evidence.
@@ -230,7 +231,7 @@ def test_shift_rejects_persistent_aligned_vertical_seam():
         to_rgb=lambda crop=False: rgb,
     )
     dc = np.zeros(3, np.int64)
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc), (start, 123, dc)], mcus_x * mcus_y)
     assert stats['shifted'] == 0
     assert stats['shift_reject'] == 1
@@ -252,15 +253,15 @@ def test_shift_rejects_globally_worse_two_field_seam(monkeypatch):
     rgb = first.copy()
     rgb[:, 10 * mcu_w:] = second[:, 10 * mcu_w:]
     start = 3 * mcus_x
-    left, right = resync._mcu_edge_arrays(
+    left, right = placement._mcu_edge_arrays(
         rgb, mcus_x, mcus_y, mcu_w, mcu_h)
-    estimate = resync._estimate_mcu_phase(
+    estimate = placement._estimate_mcu_phase(
         left, right, start, mcus_x * mcus_y, mcus_x)
     assert estimate is not None and estimate['confident']
     assert estimate['phase'] != 0
 
     # Isolate the whole-layout guard from the independent cut-local veto.
-    monkeypatch.setattr(resync, '_transition_quality_safe',
+    monkeypatch.setattr(placement, '_transition_quality_safe',
                         lambda *args, **kwargs: True)
     dec = SimpleNamespace(
         mcus_x=mcus_x, mcus_y=mcus_y, hmax=2, vmax=2,
@@ -269,7 +270,7 @@ def test_shift_rejects_globally_worse_two_field_seam(monkeypatch):
         to_rgb=lambda crop=False: rgb,
     )
     dc = np.zeros(3, np.int64)
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc), (start, 123, dc)], mcus_x * mcus_y)
     assert stats['shifted'] == 0 and stats['shift_reject'] == 1
     assert np.array_equal(corrected, rgb)
@@ -301,7 +302,7 @@ def test_shift_accepts_true_suffix_phase_with_cut_continuity():
         to_rgb=lambda crop=False: packed,
     )
     dc = np.zeros(3, np.int64)
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, packed, [(0, 0, dc), (start, 123, dc)], frontier)
     assert stats['shifted'] == 1
     assert stats['mcu_ins'] == phase and stats['mcu_drop'] == 0
@@ -315,9 +316,9 @@ def test_mcu_phase_estimator_does_not_trust_flat_zero_phase():
     """No spatial evidence means inherit the previous phase, not reset it."""
     mcus_x, mcus_y, mcu_w, mcu_h = 8, 8, 4, 8
     flat = np.full((mcus_y * mcu_h, mcus_x * mcu_w, 3), 128, np.uint8)
-    left, right = resync._mcu_edge_arrays(
+    left, right = placement._mcu_edge_arrays(
         flat, mcus_x, mcus_y, mcu_w, mcu_h)
-    estimate = resync._estimate_mcu_phase(
+    estimate = placement._estimate_mcu_phase(
         left, right, 0, mcus_x * mcus_y, mcus_x)
     assert estimate is not None
     assert estimate['phase'] == 0 and not estimate['confident']
@@ -343,7 +344,7 @@ def test_mcu_row_band_stitcher_repairs_cyclic_suffix_both_directions(
     damaged[cut_y:] = np.roll(
         damaged[cut_y:], source_phase * mcu_w, axis=1)
 
-    corrected, stats = resync._stitch_mcu_row_bands(
+    corrected, stats = placement._stitch_mcu_row_bands(
         damaged, mcus_x, mcu_w, mcu_h)
 
     assert stats['row_shifted'] == 1
@@ -372,7 +373,7 @@ def test_mcu_row_plan_uses_flat_scan_order_without_side_wrap(
         phases, expected):
     """A row-end MCU advances to the adjacent scan row, never its own edge."""
     rgb = np.arange(12, dtype=np.uint8).reshape(3, 4, 1).repeat(3, axis=2)
-    corrected, owner = resync._apply_mcu_row_plan(
+    corrected, owner = placement._apply_mcu_row_plan(
         rgb, 4, 1, 1, np.asarray(phases), np.arange(12))
 
     assert corrected[:, :, 0].ravel().tolist() == expected
@@ -383,7 +384,7 @@ def test_owner_placement_loss_separates_valid_slots_from_retained_sources():
     final_owner = np.array([0, -1, 2, -1, 4, -1])
     valid_target_slots = np.array([1, 1, 1, 1, 1, 0], dtype=bool)
 
-    assert resync._owner_placement_loss(
+    assert placement._owner_placement_loss(
         final_owner, valid_target_slots, source_count=5) == (2, 2)
 
 
@@ -404,8 +405,8 @@ def test_multistrip_row_detector_requires_narrow_phase_consensus(monkeypatch):
             'valid': {mcu_h}, 'step_h': mcu_h,
         }
 
-    monkeypatch.setattr(resync, '_detect_residual_row_seams', detect)
-    audit = resync._detect_multistrip_row_seams(
+    monkeypatch.setattr(placement, '_detect_residual_row_seams', detect)
+    audit = placement._detect_multistrip_row_seams(
         np.zeros((24, 64, 3), np.uint8), 8, 8, 8)
 
     assert len(audit['events']) == 1
@@ -423,8 +424,8 @@ def test_multistrip_row_detector_rejects_tiny_or_missing_view(monkeypatch):
         }]
         return {'events': events, 'valid': {mcu_h}, 'step_h': mcu_h}
 
-    monkeypatch.setattr(resync, '_detect_residual_row_seams', detect)
-    audit = resync._detect_multistrip_row_seams(
+    monkeypatch.setattr(placement, '_detect_residual_row_seams', detect)
+    audit = placement._detect_multistrip_row_seams(
         np.zeros((24, 64, 3), np.uint8), 8, 8, 8)
 
     assert audit['events'] == []
@@ -446,8 +447,8 @@ def test_relaxed_consensus_allows_only_one_weak_support_view(
             support[selected] = 0
         return values, support
 
-    monkeypatch.setattr(resync, '_gradient_phase_scores', scores)
-    audit = resync._detect_relaxed_consensus_row_seams(
+    monkeypatch.setattr(placement, '_gradient_phase_scores', scores)
+    audit = placement._detect_relaxed_consensus_row_seams(
         np.zeros((8, 32, 3), np.uint8), 8, 4, 4)
 
     assert len(audit['events']) == expected
@@ -497,12 +498,12 @@ def test_global_row_fit_accumulates_absolute_phases_from_original(monkeypatch):
         captured.append(np.asarray(phases).copy())
         return image.copy(), base_owner.copy()
 
-    monkeypatch.setattr(resync, '_global_row_audits', audits)
+    monkeypatch.setattr(placement, '_global_row_audits', audits)
     monkeypatch.setattr(
-        resync, '_detect_relaxed_consensus_row_seams', relaxed)
-    monkeypatch.setattr(resync, '_apply_mcu_row_plan', apply)
+        placement, '_detect_relaxed_consensus_row_seams', relaxed)
+    monkeypatch.setattr(placement, '_apply_mcu_row_plan', apply)
 
-    corrected, final_owner, stats = resync._correct_global_row_shifts(
+    corrected, final_owner, stats = placement._correct_global_row_shifts(
         rgb, mcus_x, 1, mcu_h, base_owner=owner,
         valid_sources=valid, source_count=owner.size,
         loss_budget=8, max_passes=5)
@@ -542,11 +543,11 @@ def test_global_row_residual_stats_separate_strict_and_relaxed(monkeypatch):
         return audit(0.1)
 
     monkeypatch.setattr(
-        resync, '_global_row_audits', lambda *_args: next(audits))
+        placement, '_global_row_audits', lambda *_args: next(audits))
     monkeypatch.setattr(
-        resync, '_detect_relaxed_consensus_row_seams', relaxed)
+        placement, '_detect_relaxed_consensus_row_seams', relaxed)
 
-    _corrected, _final_owner, stats = resync._correct_global_row_shifts(
+    _corrected, _final_owner, stats = placement._correct_global_row_shifts(
         rgb, mcus_x, 1, mcu_h, base_owner=owner,
         valid_sources=valid, source_count=owner.size,
         loss_budget=2, max_passes=1)
@@ -582,7 +583,7 @@ def test_global_row_passes_reuse_original_rgb_and_base_owner(monkeypatch):
         {name: empty for name in ('exact', 'soft', 'multistrip')},
     ))
     relaxed = iter((audit((2 * mcu_h, -1, 0.5)), empty))
-    original_apply = resync._apply_mcu_row_plan
+    original_apply = placement._apply_mcu_row_plan
     calls = []
 
     def apply(image, width, mcu_w, height, phases, owner):
@@ -591,13 +592,13 @@ def test_global_row_passes_reuse_original_rgb_and_base_owner(monkeypatch):
             image, width, mcu_w, height, phases, owner)
 
     monkeypatch.setattr(
-        resync, '_global_row_audits', lambda *_args: next(audits))
+        placement, '_global_row_audits', lambda *_args: next(audits))
     monkeypatch.setattr(
-        resync, '_detect_relaxed_consensus_row_seams',
+        placement, '_detect_relaxed_consensus_row_seams',
         lambda *_args: next(relaxed))
-    monkeypatch.setattr(resync, '_apply_mcu_row_plan', apply)
+    monkeypatch.setattr(placement, '_apply_mcu_row_plan', apply)
 
-    corrected, final_owner, stats = resync._correct_global_row_shifts(
+    corrected, final_owner, stats = placement._correct_global_row_shifts(
         rgb, mcus_x, 1, mcu_h, base_owner=base_owner,
         valid_sources=valid, source_count=11,
         loss_budget=4, max_passes=2)
@@ -635,14 +636,14 @@ def test_global_row_all_unsafe_passes_return_identity(monkeypatch):
     ))
     relaxed = iter((audit(2 * mcu_h, 0.5), empty))
     monkeypatch.setattr(
-        resync, '_global_row_audits', lambda *_args: next(audits))
+        placement, '_global_row_audits', lambda *_args: next(audits))
     monkeypatch.setattr(
-        resync, '_detect_relaxed_consensus_row_seams',
+        placement, '_detect_relaxed_consensus_row_seams',
         lambda *_args: next(relaxed))
     monkeypatch.setattr(
-        resync, '_global_row_audits_safe', lambda *_args: False)
+        placement, '_global_row_audits_safe', lambda *_args: False)
 
-    corrected, final_owner, stats = resync._correct_global_row_shifts(
+    corrected, final_owner, stats = placement._correct_global_row_shifts(
         rgb, mcus_x, 1, mcu_h, base_owner=owner,
         valid_sources=valid, source_count=owner.size,
         loss_budget=4, max_passes=2)
@@ -687,17 +688,17 @@ def test_global_row_enforces_five_percent_and_owner_order(
         {name: empty for name in ('exact', 'soft', 'multistrip')},
     ))
     monkeypatch.setattr(
-        resync, '_global_row_audits', lambda *_args: next(audits))
+        placement, '_global_row_audits', lambda *_args: next(audits))
     monkeypatch.setattr(
-        resync, '_detect_relaxed_consensus_row_seams',
+        placement, '_detect_relaxed_consensus_row_seams',
         lambda *_args: empty)
     monkeypatch.setattr(
-        resync, '_apply_mcu_row_plan',
+        placement, '_apply_mcu_row_plan',
         lambda image, *_args: (image.copy(), candidate_owner.copy()))
     monkeypatch.setattr(
-        resync, '_owner_placement_loss', lambda *_args: loss)
+        placement, '_owner_placement_loss', lambda *_args: loss)
 
-    corrected, final_owner, stats = resync._correct_global_row_shifts(
+    corrected, final_owner, stats = placement._correct_global_row_shifts(
         rgb, mcus_x, 1, mcu_h, base_owner=owner,
         valid_sources=valid, source_count=total,
         loss_budget=5, max_passes=1)
@@ -725,13 +726,13 @@ def test_global_row_fit_vetoes_cumulative_owner_loss(monkeypatch):
         'step_h': mcu_h,
     }
     monkeypatch.setattr(
-        resync, '_global_row_audits',
+        placement, '_global_row_audits',
         lambda *_args: {
             'exact': event, 'soft': event, 'multistrip': event})
     monkeypatch.setattr(
-        resync, '_owner_placement_loss', lambda *_args: (9, 9))
+        placement, '_owner_placement_loss', lambda *_args: (9, 9))
 
-    corrected, final_owner, stats = resync._correct_global_row_shifts(
+    corrected, final_owner, stats = placement._correct_global_row_shifts(
         rgb, mcus_x, 1, mcu_h, base_owner=owner,
         valid_sources=valid, source_count=owner.size,
         loss_budget=8)
@@ -798,16 +799,16 @@ def test_global_row_fit_explores_unsafe_intermediate_to_later_safe(monkeypatch):
         plans.append(np.asarray(phases).copy())
         return image.copy(), base_owner.copy()
 
-    monkeypatch.setattr(resync, '_global_row_audits', audits)
+    monkeypatch.setattr(placement, '_global_row_audits', audits)
     monkeypatch.setattr(
-        resync, '_detect_relaxed_consensus_row_seams',
+        placement, '_detect_relaxed_consensus_row_seams',
         lambda *_args: next(relaxed))
     monkeypatch.setattr(
-        resync, '_global_row_audits_safe',
+        placement, '_global_row_audits_safe',
         lambda *_args: next(safe))
-    monkeypatch.setattr(resync, '_apply_mcu_row_plan', apply)
+    monkeypatch.setattr(placement, '_apply_mcu_row_plan', apply)
 
-    corrected, final_owner, stats = resync._correct_global_row_shifts(
+    corrected, final_owner, stats = placement._correct_global_row_shifts(
         rgb, mcus_x, 1, mcu_h, base_owner=owner,
         valid_sources=valid_sources, source_count=owner.size,
         loss_budget=8, max_passes=5)
@@ -861,7 +862,7 @@ def test_global_row_safety_rejects_opposite_phase_at_same_boundary():
     opposite = {name: audit(-2, 0.1)
                 for name in ('exact', 'soft', 'multistrip')}
 
-    assert not resync._global_row_audits_safe(opposite, before, 8)
+    assert not placement._global_row_audits_safe(opposite, before, 8)
 
 
 @pytest.mark.parametrize('phases', [
@@ -873,24 +874,24 @@ def test_compressed_phase_runs_equal_production_row_spans(phases):
     rgb = np.arange(rows * mcus_x, dtype=np.uint8).reshape(
         rows, mcus_x, 1).repeat(3, axis=2)
     phases = np.asarray(phases, dtype=np.int32)
-    per_row_rgb, per_row_owner = resync._apply_mcu_row_plan(
+    per_row_rgb, per_row_owner = placement._apply_mcu_row_plan(
         rgb, mcus_x, 1, 1, phases,
         np.arange(rows * mcus_x, dtype=np.int64))
-    spans, offsets = resync._row_phase_run_spans(phases, mcus_x)
-    run_rgb, inserted, dropped = resync._scatter_mcu_segments(
+    spans, offsets = placement._row_phase_run_spans(phases, mcus_x)
+    run_rgb, inserted, dropped = placement._scatter_mcu_segments(
         rgb, mcus_x, rows, 1, 1, spans, offsets)
-    run_owner, _labels = resync._mcu_owner_map(
+    run_owner, _labels = placement._mcu_owner_map(
         rows * mcus_x, spans, offsets)
 
     assert np.array_equal(run_rgb, per_row_rgb)
     assert np.array_equal(run_owner, per_row_owner)
-    assert (inserted, dropped) == resync._mcu_placement_stats(
+    assert (inserted, dropped) == placement._mcu_placement_stats(
         rows * mcus_x, spans, offsets)
 
 
 def test_residual_chain_composes_adjacent_multistrip_seeds(monkeypatch):
     """Two ends of a narrow displaced band are applied in one phase plan."""
-    monkeypatch.setattr(resync, '_residual_chain_events',
+    monkeypatch.setattr(placement, '_residual_chain_events',
                         lambda *_args, **_kwargs: [])
     rgb = np.arange(4 * 8, dtype=np.uint8).reshape(4, 8, 1).repeat(3, 2)
     seeds = [
@@ -898,7 +899,7 @@ def test_residual_chain_composes_adjacent_multistrip_seeds(monkeypatch):
         {'y': 2, 'phase': -1, 'gain': .2, 'margin': .1, 'score': .3},
     ]
 
-    phases, generated = resync._build_residual_chain_plan(
+    phases, generated = placement._build_residual_chain_plan(
         rgb, 8, 1, 1, seeds)
 
     assert phases.tolist() == [0, 2, 1, 1]
@@ -911,7 +912,7 @@ def _structural_cut(row=2, mode='anchor', side=None):
         'phase': 1, 'score': 0.5, 'gain': 0.2,
         'margin': 0.1, 'support': 100,
     }
-    return resync._StructuralRowCut(
+    return placement._StructuralRowCut(
         1, row, mode, side, metric, None, 3, 3)
 
 
@@ -920,12 +921,12 @@ def _structural_candidate(cut, side, lo, hi, phase, key=(0,)):
         'phase': 0, 'score': 0.5, 'gain': 0.0,
         'margin': 0.1, 'support': 100,
     }
-    return resync._StructuralRowCandidate(
+    return placement._StructuralRowCandidate(
         cut, side, lo, hi, phase, target, None, 0, 0, key)
 
 
 def test_structural_rows_use_final_placed_offsets_and_skip_discarded():
-    placed, rows = resync._placed_structural_rows(
+    placed, rows = placement._placed_structural_rows(
         [(0, 8), (8, 16), (16, 24), (24, 32)],
         [0, 3, None, -5], mcus_x=4, total_rows=8)
 
@@ -939,10 +940,10 @@ def test_structural_candidates_merge_equal_overlap_and_reject_conflict():
     same = _structural_candidate(cut, 'before', 4, 8, 3)
     conflict = _structural_candidate(cut, 'before', 4, 8, -2)
 
-    merged = resync._merge_structural_row_candidates(
+    merged = placement._merge_structural_row_candidates(
         (first, same), total_rows=10)
     assert merged.tolist() == [0, 0, 3, 3, 3, 3, 3, 3, 0, 0]
-    assert resync._merge_structural_row_candidates(
+    assert placement._merge_structural_row_candidates(
         (first, conflict), total_rows=10) is None
 
 
@@ -953,10 +954,10 @@ def test_structural_half_width_exact_tie_rejects_both_directions():
     positive = _structural_candidate(
         cut, 'after', 2, 6, 4, key=(0, 0, 0))
 
-    assert resync._structural_candidate_phases(8)[-1] == 4
-    assert resync._drop_ambiguous_half_candidates(
+    assert placement._structural_candidate_phases(8)[-1] == 4
+    assert placement._drop_ambiguous_half_candidates(
         [negative, positive], 8) == []
-    assert len(resync._drop_ambiguous_half_candidates(
+    assert len(placement._drop_ambiguous_half_candidates(
         [negative, _structural_candidate(
             cut, 'after', 2, 6, 4, key=(0, 0, 1))], 8)) == 2
 
@@ -970,9 +971,9 @@ def test_structural_soft_audit_allows_small_max_jitter_not_regression():
     larger_sum = _row_audit(
         (8, 0.15), (24, 0.101), valid=(8, 24))
 
-    assert resync._structural_audit_safe(before, small_jitter, 16)
-    assert not resync._structural_audit_safe(before, larger_max, 16)
-    assert not resync._structural_audit_safe(before, larger_sum, 16)
+    assert placement._structural_audit_safe(before, small_jitter, 16)
+    assert not placement._structural_audit_safe(before, larger_max, 16)
+    assert not placement._structural_audit_safe(before, larger_sum, 16)
 
 
 def _row_audit(*events, valid=None, step=8):
@@ -1004,27 +1005,27 @@ def test_structural_selector_composes_owner_and_cumulative_loss(monkeypatch):
     }
 
     monkeypatch.setattr(
-        resync, '_discover_structural_row_cuts',
+        placement, '_discover_structural_row_cuts',
         lambda *args, **kwargs: ([cut], [0, 2, 4]))
     monkeypatch.setattr(
-        resync, '_enumerate_structural_row_candidates',
+        placement, '_enumerate_structural_row_candidates',
         lambda *args, **kwargs: [candidate])
     monkeypatch.setattr(
-        resync, '_row_boundary_metric',
+        placement, '_row_boundary_metric',
         lambda *args, **kwargs: target)
     monkeypatch.setattr(
-        resync, '_structural_boundary_from_owner',
+        placement, '_structural_boundary_from_owner',
         lambda *args, **kwargs: target)
     monkeypatch.setattr(
-        resync, '_structural_audit',
+        placement, '_structural_audit',
         lambda *args, **kwargs: empty)
 
-    corrected, owner, stats = resync._correct_structural_row_shifts(
+    corrected, owner, stats = placement._correct_structural_row_shifts(
         rgb, mcus_x, 1, 1, [(0, 8), (8, 16)], [0, 0],
         base_owner, valid, source_count=16, loss_budget=4)
-    expected_rgb, expected_owner = resync._apply_mcu_row_plan(
+    expected_rgb, expected_owner = placement._apply_mcu_row_plan(
         rgb, mcus_x, 1, 1, np.array([0, 0, 1, 1]), base_owner)
-    expected_loss = resync._owner_placement_loss(
+    expected_loss = placement._owner_placement_loss(
         expected_owner, valid, source_count=16)
 
     assert np.array_equal(corrected, expected_rgb)
@@ -1071,7 +1072,7 @@ def test_segment_shift_feeds_structural_owner_into_row_stitch(monkeypatch):
         captured['segment_owner'] = base_owner.copy()
         owner = base_owner.copy()
         owner[0] = -1
-        inserted, dropped = resync._owner_placement_loss(
+        inserted, dropped = placement._owner_placement_loss(
             owner, valid_sources, source_count)
         return image, owner, {
             'row_local_cuts': 1, 'row_local_intervals': 1,
@@ -1093,22 +1094,22 @@ def test_segment_shift_feeds_structural_owner_into_row_stitch(monkeypatch):
             'row_shift_veto': 0,
         }
 
-    monkeypatch.setattr(resync, '_adaptive_phase_estimate', estimate)
-    monkeypatch.setattr(resync, '_boundary_signature',
+    monkeypatch.setattr(placement, '_adaptive_phase_estimate', estimate)
+    monkeypatch.setattr(placement, '_boundary_signature',
                         lambda *args, **kwargs: None)
-    monkeypatch.setattr(resync, '_transition_quality_safe',
+    monkeypatch.setattr(placement, '_transition_quality_safe',
                         lambda *args, **kwargs: True)
-    monkeypatch.setattr(resync, '_layout_quality_safe',
+    monkeypatch.setattr(placement, '_layout_quality_safe',
                         lambda *args, **kwargs: True)
-    monkeypatch.setattr(resync, '_correct_global_row_shifts', global_fit)
-    monkeypatch.setattr(resync, '_correct_structural_row_shifts', local)
-    monkeypatch.setattr(resync, '_stitch_mcu_row_bands', stitch)
+    monkeypatch.setattr(placement, '_correct_global_row_shifts', global_fit)
+    monkeypatch.setattr(placement, '_correct_structural_row_shifts', local)
+    monkeypatch.setattr(placement, '_stitch_mcu_row_bands', stitch)
     dc = np.zeros(3, np.int64)
 
-    _corrected, stats = resync._correct_segment_shifts(
+    _corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc), (band, 123, dc)], mcus_x * mcus_y)
 
-    expected_owner, _labels = resync._mcu_owner_map(
+    expected_owner, _labels = placement._mcu_owner_map(
         mcus_x * mcus_y, captured['spans'], list(captured['offsets']))
     assert np.array_equal(captured['segment_owner'], expected_owner)
     assert captured['stitch_owner'][0] == -1
@@ -1142,25 +1143,25 @@ def test_global_success_skips_local_and_receives_16x16_grid(monkeypatch):
         }
 
     monkeypatch.setattr(
-        resync, '_adaptive_phase_estimate',
+        placement, '_adaptive_phase_estimate',
         lambda *_args, **_kwargs: {
             'phase': 0, 'margin': 1.0, 'score': 1.0,
             'raw_ratio': 1.0, 'pairs': 5, 'confident': True,
         })
     monkeypatch.setattr(
-        resync, '_boundary_signature', lambda *_args, **_kwargs: None)
+        placement, '_boundary_signature', lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        resync, '_layout_quality_safe', lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(resync, '_correct_global_row_shifts', global_fit)
+        placement, '_layout_quality_safe', lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(placement, '_correct_global_row_shifts', global_fit)
     monkeypatch.setattr(
-        resync, '_correct_structural_row_shifts',
+        placement, '_correct_structural_row_shifts',
         lambda *_args, **_kwargs: pytest.fail('local must be skipped'))
     monkeypatch.setattr(
-        resync, '_stitch_mcu_row_bands',
+        placement, '_stitch_mcu_row_bands',
         lambda *_args, **_kwargs: pytest.fail('stitch must be skipped'))
     dc = np.zeros(3, np.int64)
 
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc)], mcus_x * mcus_y,
         [(2 * mcus_x, 'sub', 0.0)])
 
@@ -1181,8 +1182,8 @@ def test_row_candidate_requires_full_twenty_percent_residual_reduction():
     exact = _row_audit((8, 0.4), (24, 0.4), valid=(8, 24))
     short = _row_audit((8, 0.401), (24, 0.4), valid=(8, 24))
 
-    assert resync._row_candidate_safe(before, exact)
-    assert not resync._row_candidate_safe(before, short)
+    assert placement._row_candidate_safe(before, exact)
+    assert not placement._row_candidate_safe(before, short)
 
 
 def test_row_candidate_vetoes_new_strong_unmatched_seam():
@@ -1190,7 +1191,7 @@ def test_row_candidate_vetoes_new_strong_unmatched_seam():
     after = _row_audit(
         (8, 0.1), (48, 0.1), (80, 0.3), valid=(8, 48, 80))
 
-    assert not resync._row_candidate_safe(before, after)
+    assert not placement._row_candidate_safe(before, after)
 
 
 def test_row_candidate_matches_nearby_seam_once_and_preserves_support():
@@ -1198,15 +1199,15 @@ def test_row_candidate_matches_nearby_seam_once_and_preserves_support():
     nearby = _row_audit((16, 0.2), valid=(8, 16))
     missing_support = _row_audit((16, 0.2), valid=(16,))
 
-    assert resync._row_candidate_safe(before, nearby)
-    assert not resync._row_candidate_safe(before, missing_support)
+    assert placement._row_candidate_safe(before, nearby)
+    assert not placement._row_candidate_safe(before, missing_support)
 
 
 def test_row_candidate_vetoes_matched_seam_that_becomes_much_stronger():
     before = _row_audit((8, 0.5), (24, 0.5), valid=(8, 24))
     stronger = _row_audit((8, 0.7), (24, 0.1), valid=(8, 24))
 
-    assert not resync._row_candidate_safe(before, stronger)
+    assert not placement._row_candidate_safe(before, stronger)
 
 
 def test_coarse_row_guard_allows_stability_but_not_large_worsening():
@@ -1214,9 +1215,9 @@ def test_coarse_row_guard_allows_stability_but_not_large_worsening():
     stable = _row_audit((16, 0.31), (48, 0.3), valid=(16, 48), step=16)
     worse = _row_audit((16, 0.8), (48, 0.8), valid=(16, 48), step=16)
 
-    assert resync._row_candidate_safe(
+    assert placement._row_candidate_safe(
         before, stable, require_reduction=False)
-    assert not resync._row_candidate_safe(
+    assert not placement._row_candidate_safe(
         before, worse, require_reduction=False)
 
 
@@ -1231,7 +1232,7 @@ def test_mcu_row_band_stitcher_preserves_aligned_vertical_seam():
     aligned = np.clip(green, 0, 255).astype(np.uint8)
     aligned = aligned[:, :, None].repeat(3, axis=2)
 
-    corrected, stats = resync._stitch_mcu_row_bands(
+    corrected, stats = placement._stitch_mcu_row_bands(
         aligned, mcus_x, mcu_w, mcu_h)
 
     assert stats['row_shifted'] == 0
@@ -1245,7 +1246,7 @@ def test_mcu_row_band_stitcher_rejects_flat_evidence():
     damaged = flat.copy()
     damaged[32:] = np.roll(damaged[32:], 7 * 8, axis=1)
 
-    corrected, stats = resync._stitch_mcu_row_bands(
+    corrected, stats = placement._stitch_mcu_row_bands(
         damaged, 24, 8, 8)
 
     assert stats['row_shifted'] == 0
@@ -1258,12 +1259,12 @@ def test_scatter_mcu_segments_inserts_and_deletes_flat_slots():
     rgb = np.arange(8, dtype=np.uint8).reshape(2, 4, 1).repeat(3, axis=2)
     spans = [(0, 3), (3, 8)]
 
-    inserted, gaps, dropped = resync._scatter_mcu_segments(
+    inserted, gaps, dropped = placement._scatter_mcu_segments(
         rgb, 4, 2, 1, 1, spans, [0, 1])
     assert inserted[:, :, 0].ravel().tolist() == [0, 1, 2, 128, 3, 4, 5, 6]
     assert gaps == 1 and dropped == 1
 
-    deleted, gaps, dropped = resync._scatter_mcu_segments(
+    deleted, gaps, dropped = placement._scatter_mcu_segments(
         rgb, 4, 2, 1, 1, spans, [0, -1])
     assert deleted[:, :, 0].ravel().tolist() == [0, 1, 3, 4, 5, 6, 7, 128]
     assert gaps == 1 and dropped == 1
@@ -1280,11 +1281,11 @@ def test_explicit_mcu_zero_resync_unlocks_the_top_anchor(monkeypatch):
         h=SimpleNamespace(width=mcus_x * 8, height=mcus_y * 8),
         to_rgb=lambda crop=False: full,
     )
-    monkeypatch.setattr(resync, '_estimate_mcu_phase', lambda *args, **kwargs: {
+    monkeypatch.setattr(placement, '_estimate_mcu_phase', lambda *args, **kwargs: {
         'phase': 1, 'margin': 4.0, 'confident': True,
     })
     dc = np.zeros(3, np.int64)
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, full, [(0, 0, dc), (0, 123, dc)], mcus_x * mcus_y,
         [(0, 'resync', 1.25)])
     tiles = _tile_view(corrected, mcus_y, mcus_x, 8, 8)
@@ -1315,7 +1316,7 @@ def test_mcu_zero_top_unlock_requires_both_resync_records(
         h=SimpleNamespace(width=mcus_x * 8, height=mcus_y * 8),
         to_rgb=lambda crop=False: full,
     )
-    monkeypatch.setattr(resync, '_adaptive_phase_estimate',
+    monkeypatch.setattr(placement, '_adaptive_phase_estimate',
                         lambda *args, **kwargs: {
                             'phase': 1, 'margin': 4.0, 'score': 8.0,
                             'raw_ratio': 3.0, 'pairs': 5,
@@ -1323,7 +1324,7 @@ def test_mcu_zero_top_unlock_requires_both_resync_records(
                         })
     dc = np.zeros(3, np.int64)
     segments = [(0, 0, dc), *extra_segments]
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, full, segments, mcus_x * mcus_y, phase_cuts)
 
     assert stats['shifted'] == 0
@@ -1347,15 +1348,15 @@ def test_shift_uses_hidden_pixels_from_partial_edge_mcus(monkeypatch):
         mcus_x=mcus_x, mcus_y=mcus_y, hmax=1, vmax=1,
         h=SimpleNamespace(width=29, height=61), to_rgb=render,
     )
-    monkeypatch.setattr(resync, '_estimate_mcu_phase', lambda *args, **kwargs: {
+    monkeypatch.setattr(placement, '_estimate_mcu_phase', lambda *args, **kwargs: {
         'phase': 1, 'margin': 4.0, 'confident': True,
     })
-    monkeypatch.setattr(resync, '_transition_quality_safe',
+    monkeypatch.setattr(placement, '_transition_quality_safe',
                         lambda *args, **kwargs: True)
-    monkeypatch.setattr(resync, '_layout_quality_safe',
+    monkeypatch.setattr(placement, '_layout_quality_safe',
                         lambda *args, **kwargs: True)
     dc = np.zeros(3, np.int64)
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, cropped, [(0, 0, dc), (16, 123, dc)], mcus_x * mcus_y)
     assert calls == [False]
     assert corrected.shape == cropped.shape
@@ -1367,7 +1368,7 @@ def test_shift_uses_hidden_pixels_from_partial_edge_mcus(monkeypatch):
 def test_mcu_placement_stats_count_intentionally_discarded_band():
     """A whole-band discard is reported as real MCU loss and blank space."""
     spans = [(0, 4), (4, 6), (6, 10)]
-    inserted, dropped = resync._mcu_placement_stats(
+    inserted, dropped = placement._mcu_placement_stats(
         10, spans, [0, None, 0])
     assert inserted == 2
     assert dropped == 2
@@ -1381,13 +1382,13 @@ def test_boundary_signature_distinguishes_reliable_and_auxiliary_phase():
     profile = (profile - profile.mean(axis=0)) / profile.std(axis=0)
     shifted = np.roll(profile, -7, axis=0)
 
-    reliable = resync._signature_correlation(
+    reliable = placement._signature_correlation(
         {'profile': profile, 'support': 25},
         {'profile': shifted, 'support': 24}, width)
     assert reliable['phase_delta'] == 7
     assert reliable['strong'] and not reliable['auxiliary']
 
-    auxiliary = resync._signature_correlation(
+    auxiliary = placement._signature_correlation(
         {'profile': profile, 'support': 12},
         {'profile': shifted, 'support': 12}, width)
     assert auxiliary['phase_delta'] == 7
@@ -1412,10 +1413,10 @@ def test_auxiliary_signature_does_not_propagate_as_a_later_anchor(monkeypatch):
             'raw_ratio': 2.0, 'pairs': 10, 'confident': False,
         }
 
-    monkeypatch.setattr(resync, '_adaptive_phase_estimate', estimate)
-    monkeypatch.setattr(resync, '_boundary_signature',
+    monkeypatch.setattr(placement, '_adaptive_phase_estimate', estimate)
+    monkeypatch.setattr(placement, '_boundary_signature',
                         lambda *args, **kwargs: {'support': 12})
-    monkeypatch.setattr(resync, '_signature_correlation',
+    monkeypatch.setattr(placement, '_signature_correlation',
                         lambda *args, **kwargs: {
                             'delta': 2, 'phase_delta': 2, 'score': 1.0,
                             'peak': 1.0, 'margin': 0.2, 'support': 12,
@@ -1423,7 +1424,7 @@ def test_auxiliary_signature_does_not_propagate_as_a_later_anchor(monkeypatch):
                             'hint_used': False,
                         })
     dc = np.zeros(3, np.int64)
-    _corrected, stats = resync._correct_segment_shifts(
+    _corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc)], mcus_x * mcus_y,
         [(band, 'sub', 0.0), (2 * band, 'sub', 0.0),
          (3 * band, 'sub', 0.0)])
@@ -1447,9 +1448,9 @@ def test_relaxed_phase_unwrap_does_not_force_whole_row_branch_drift():
         {'phase': 0, 'confident': False},
         {'phase': 6, 'confident': False},
     ]
-    strict = resync._materialize_phase_offsets(
+    strict = placement._materialize_phase_offsets(
         spans, estimates, set(), 10)
-    previous = resync._materialize_phase_offsets(
+    previous = placement._materialize_phase_offsets(
         spans, estimates, set(), 10, relaxed_updates=True)
     assert strict == [0, -4, 2, -2, 4, 0, -4]
     assert previous == [0, -4, -8, -12, -16, -20, -24]
@@ -1467,18 +1468,18 @@ def test_three_tuple_phase_cuts_keep_the_clean_top_prefix_anchored(monkeypatch):
         h=SimpleNamespace(width=mcus_x * 8, height=mcus_y * 8),
         to_rgb=lambda crop=False: rgb,
     )
-    monkeypatch.setattr(resync, '_adaptive_phase_estimate',
+    monkeypatch.setattr(placement, '_adaptive_phase_estimate',
                         lambda *args, **kwargs: {
                             'phase': 1, 'margin': 2.0, 'score': 8.0,
                             'raw_ratio': 3.0, 'pairs': 2,
                             'confident': True,
                         })
-    monkeypatch.setattr(resync, '_boundary_signature',
+    monkeypatch.setattr(placement, '_boundary_signature',
                         lambda *args, **kwargs: None)
-    monkeypatch.setattr(resync, '_layout_quality_safe',
+    monkeypatch.setattr(placement, '_layout_quality_safe',
                         lambda *args, **kwargs: True)
     dc = np.zeros(3, np.int64)
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc)], mcus_x * mcus_y,
         [(8, 'sub', 0.0), (16, 'resync', 1.25)])
     tiles = _tile_view(corrected, mcus_y, mcus_x, 8, 8)
@@ -1503,28 +1504,28 @@ def test_two_band_common_rotation_cannot_move_a_locked_top(monkeypatch):
         h=SimpleNamespace(width=mcus_x * 8, height=mcus_y * 8),
         to_rgb=lambda crop=False: rgb,
     )
-    monkeypatch.setattr(resync, '_adaptive_phase_estimate',
+    monkeypatch.setattr(placement, '_adaptive_phase_estimate',
                         lambda *args, **kwargs: {
                             'phase': 1, 'margin': 3.0, 'score': 8.0,
                             'raw_ratio': 3.0, 'pairs': 5,
                             'confident': True,
                         })
-    monkeypatch.setattr(resync, '_boundary_signature',
+    monkeypatch.setattr(placement, '_boundary_signature',
                         lambda *args, **kwargs: None)
-    monkeypatch.setattr(resync, '_transition_quality_safe',
+    monkeypatch.setattr(placement, '_transition_quality_safe',
                         lambda *args, **kwargs: True)
-    monkeypatch.setattr(resync, '_layout_quality_safe',
+    monkeypatch.setattr(placement, '_layout_quality_safe',
                         lambda *args, **kwargs: True)
 
     def layout(total, spans, offsets, _width, *_edges):
-        inserted, dropped = resync._mcu_placement_stats(
+        inserted, dropped = placement._mcu_placement_stats(
             total, spans, offsets)
         top = float(offsets[0])
         return inserted, dropped, np.array([top]), float(top == 0)
 
-    monkeypatch.setattr(resync, '_layout_for_offsets', layout)
+    monkeypatch.setattr(placement, '_layout_for_offsets', layout)
     monkeypatch.setattr(
-        resync, '_layout_after_metrics',
+        placement, '_layout_after_metrics',
         lambda _before, after: (
             (0.0, 0.0, 0.0)
             if after.size == 1 and float(after[0]) == 1.0
@@ -1538,11 +1539,11 @@ def test_two_band_common_rotation_cannot_move_a_locked_top(monkeypatch):
         'row_shift_veto': 0,
     }
     monkeypatch.setattr(
-        resync, '_stitch_mcu_row_bands',
+        placement, '_stitch_mcu_row_bands',
         lambda image, *args, **kwargs: (image, dict(row_zero)))
 
     dc = np.zeros(3, np.int64)
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc)], mcus_x * mcus_y,
         [(16, 'resync', 1.25)])
     tiles = _tile_view(corrected, mcus_y, mcus_x, 8, 8)
@@ -1574,27 +1575,27 @@ def test_signature_chain_cannot_rotate_a_locked_top(monkeypatch):
             'raw_ratio': 3.0, 'pairs': 5, 'confident': True,
         }
 
-    monkeypatch.setattr(resync, '_adaptive_phase_estimate', estimate)
-    monkeypatch.setattr(resync, '_boundary_signature',
+    monkeypatch.setattr(placement, '_adaptive_phase_estimate', estimate)
+    monkeypatch.setattr(placement, '_boundary_signature',
                         lambda *args, **kwargs: {'support': 25})
-    monkeypatch.setattr(resync, '_signature_correlation',
+    monkeypatch.setattr(placement, '_signature_correlation',
                         lambda *args, **kwargs: {
                             'delta': 2, 'phase_delta': 2,
                             'score': 1.0, 'peak': 1.0, 'margin': 0.2,
                             'support': 25, 'strong': True,
                             'auxiliary': False, 'hint_used': False,
                         })
-    monkeypatch.setattr(resync, '_layout_quality_safe',
+    monkeypatch.setattr(placement, '_layout_quality_safe',
                         lambda *args, **kwargs: True)
 
     def layout(total_mcus, spans, offsets, _width, *_edges):
-        inserted, dropped = resync._mcu_placement_stats(
+        inserted, dropped = placement._mcu_placement_stats(
             total_mcus, spans, offsets)
         top = int(offsets[0])
         mean = 0.0 if top == -2 else 10.0
         return inserted, dropped, np.array([float(top)]), mean
 
-    monkeypatch.setattr(resync, '_layout_for_offsets', layout)
+    monkeypatch.setattr(placement, '_layout_for_offsets', layout)
     row_zero = {
         'row_shift_plan': 0, 'row_shift_rounds': 0,
         'row_shifted': 0, 'row_shift_passes': 0,
@@ -1604,11 +1605,11 @@ def test_signature_chain_cannot_rotate_a_locked_top(monkeypatch):
         'row_shift_veto': 0,
     }
     monkeypatch.setattr(
-        resync, '_stitch_mcu_row_bands',
+        placement, '_stitch_mcu_row_bands',
         lambda image, *args, **kwargs: (image, dict(row_zero)))
 
     dc = np.zeros(3, np.int64)
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc)], total,
         [(32, 'sub', 0.0), (64, 'sub', 0.0)])
     tiles = _tile_view(corrected, mcus_y, mcus_x, 8, 8)
@@ -1639,15 +1640,15 @@ def test_fine_phase_noop_does_not_fall_back_to_coarser_resync(monkeypatch):
             'pairs': 4, 'confident': True,
         }
 
-    monkeypatch.setattr(resync, '_adaptive_phase_estimate', estimate)
-    monkeypatch.setattr(resync, '_boundary_signature',
+    monkeypatch.setattr(placement, '_adaptive_phase_estimate', estimate)
+    monkeypatch.setattr(placement, '_boundary_signature',
                         lambda *args, **kwargs: None)
-    monkeypatch.setattr(resync, '_transition_quality_safe',
+    monkeypatch.setattr(placement, '_transition_quality_safe',
                         lambda *args, **kwargs: True)
-    monkeypatch.setattr(resync, '_layout_quality_safe',
+    monkeypatch.setattr(placement, '_layout_quality_safe',
                         lambda *args, **kwargs: True)
     dc = np.zeros(3, np.int64)
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc), (8, 123, dc)], mcus_x * mcus_y,
         [(8, 'resync', None), (16, 'sub', 0.0)])
     assert stats['shifted'] == 0
@@ -1675,15 +1676,15 @@ def test_fine_reject_with_coarse_noop_preserves_reject_flag(monkeypatch):
             'pairs': 4, 'confident': True,
         }
 
-    monkeypatch.setattr(resync, '_adaptive_phase_estimate', estimate)
-    monkeypatch.setattr(resync, '_boundary_signature',
+    monkeypatch.setattr(placement, '_adaptive_phase_estimate', estimate)
+    monkeypatch.setattr(placement, '_boundary_signature',
                         lambda *args, **kwargs: None)
-    monkeypatch.setattr(resync, '_transition_quality_safe',
+    monkeypatch.setattr(placement, '_transition_quality_safe',
                         lambda *args, **kwargs: True)
-    monkeypatch.setattr(resync, '_layout_quality_safe',
+    monkeypatch.setattr(placement, '_layout_quality_safe',
                         lambda *args, **kwargs: False)
     dc = np.zeros(3, np.int64)
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc)], mcus_x * mcus_y,
         [(16, 'sub', 0.0)])
 
@@ -1727,16 +1728,16 @@ def test_trusted_multiband_shift_uses_capped_global_mean(
             'confident': trusted and start == band,
         }
 
-    monkeypatch.setattr(resync, '_adaptive_phase_estimate', estimate)
-    monkeypatch.setattr(resync, '_boundary_signature',
+    monkeypatch.setattr(placement, '_adaptive_phase_estimate', estimate)
+    monkeypatch.setattr(placement, '_boundary_signature',
                         lambda *args, **kwargs: None)
-    monkeypatch.setattr(resync, '_layout_quality_safe',
+    monkeypatch.setattr(placement, '_layout_quality_safe',
                         lambda *args, **kwargs: False)
-    monkeypatch.setattr(resync, '_layout_quality_metrics',
+    monkeypatch.setattr(placement, '_layout_quality_metrics',
                         lambda *args, **kwargs: (
                             1.0, 2.0, 1.0, capped_after, 0.0, high_after))
     dc = np.zeros(3, np.int64)
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc)], mcus_x * mcus_y,
         [(band, 'sub', 0.0), (2 * band, 'sub', 0.0)])
 
@@ -1757,16 +1758,16 @@ def test_aligned_trace_does_not_apply_short_band_deletion_only(monkeypatch):
         h=SimpleNamespace(width=mcus_x * 8, height=mcus_y * 8),
         to_rgb=lambda crop=False: rgb,
     )
-    monkeypatch.setattr(resync, '_adaptive_phase_estimate',
+    monkeypatch.setattr(placement, '_adaptive_phase_estimate',
                         lambda *args, **kwargs: {
                             'phase': 0, 'margin': 3.0, 'score': 8.0,
                             'raw_ratio': 3.0, 'pairs': 5,
                             'confident': True,
                         })
-    monkeypatch.setattr(resync, '_boundary_signature',
+    monkeypatch.setattr(placement, '_boundary_signature',
                         lambda *args, **kwargs: None)
     dc = np.zeros(3, np.int64)
-    corrected, stats = resync._correct_segment_shifts(
+    corrected, stats = placement._correct_segment_shifts(
         dec, rgb, [(0, 0, dc)], mcus_x * mcus_y,
         [(400, 'sub', 0.0), (420, 'sub', 0.0)])
     assert stats['shifted'] == 0
@@ -1851,7 +1852,7 @@ def test_recover_file_global_only_shift_writes_recovered(
             'row_global_changes': 1, 'row_global_plan': ((1, 1),),
         }
 
-    monkeypatch.setattr(resync, '_correct_segment_shifts', global_only)
+    monkeypatch.setattr(placement, '_correct_segment_shifts', global_only)
     out, action, info = resync.recover_file(src, tmp_path)
 
     assert action == 'RECOVERED'

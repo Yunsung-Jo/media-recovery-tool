@@ -47,7 +47,12 @@ T-0004의 forensic domain·record·NPZ 기반은 내부 API로 존재하지만 �
 | [`discovery/materializer.py`](../src/media_recovery/discovery/materializer.py) | hit 중복 제거·정렬·중첩 분류, 경계 호출, 청크 단위 저장과 오류 집계 |
 | [`formats/boundaries.py`](../src/media_recovery/formats/boundaries.py) | JPEG marker/entropy와 RIFF/OpenDML 구조를 이용한 exclusive 끝 계산 |
 | [`formats/jpeg/baseline_decoder.py`](../src/media_recovery/formats/jpeg/baseline_decoder.py) | 임의 bit 위치와 DC 상태에서 재개 가능한 3컴포넌트 baseline JPEG decoder |
-| [`reconstruction/engine.py`](../src/media_recovery/reconstruction/engine.py) | byte 편집, bit resync, decode segment, MCU placement, 렌더·분류·저장 |
+| [`reconstruction/engine.py`](../src/media_recovery/reconstruction/engine.py) | `recover_file`·`recover`·`recover_bytes`·RGB 지표의 기존 import/signature를 유지하는 호환 façade |
+| [`reconstruction/metrics.py`](../src/media_recovery/reconstruction/metrics.py) | normal/header 경로가 공유하는 순수 RGB gray·undecoded 지표 |
+| [`reconstruction/entropy.py`](../src/media_recovery/reconstruction/entropy.py) | decoder trajectory mutation, byte edit·bit resync, segment와 반복 복구 loop |
+| [`reconstruction/placement.py`](../src/media_recovery/reconstruction/placement.py) | segment/MCU owner 배치, band·전역·구조적 국소·legacy row 보정과 손실·안전 평가 |
+| [`reconstruction/single_best.py`](../src/media_recovery/reconstruction/single_best.py) | header/정상 경로의 현행 single-best 선택, 선택 경로 placement 1회, action 판정과 immutable 내부 결과 |
+| [`reconstruction/legacy_output.py`](../src/media_recovery/reconstruction/legacy_output.py) | 선택 결과의 JPEG encoding 또는 원본 byte 보존과 legacy action directory routing |
 | [`reconstruction/header_hypotheses.py`](../src/media_recovery/reconstruction/header_hypotheses.py) | DHT/DQT/SOF/SOS 후보 재구성과 구조 gate |
 | [`enhancement/thumbnail_guided.py`](../src/media_recovery/enhancement/thumbnail_guided.py) | thumbnail 정합, 행별 밀림·색 보정 추정과 self-check |
 | [`artifacts/`](../src/media_recovery/artifacts/) | source hash case, run lifecycle·seal, strict JSONL, forensic record와 결정적 coefficient NPZ reader/writer |
@@ -55,8 +60,7 @@ T-0004의 forensic domain·record·NPZ 기반은 내부 API로 존재하지만 �
 CLI·저장·중첩 분류는 별도 모듈이지만 JPEG와 AVI boundary는 현재 한 파일에 있다. 두 경계가 다음 외부
 후보와 AVI 내부 MJPEG 여부를 함께 알아야 하기 때문이다. 지원 형식이 늘어나 이 상호 참조가 커질 때
 형식별 모듈과 공통 boundary registry로 나누는 것이 분리 조건이다. 지금 나누면 순환 의존이나 얇은
-forwarding 모듈만 늘어날 수 있어 현재 배치를 유지한다. `reconstruction/engine.py`가 탐색, 배치, 평가,
-분류와 저장을 함께 맡는 것도 현재의 의도적인 중간 상태이며 그 책임 분리는 T-0005 범위다.
+forwarding 모듈만 늘어날 수 있어 현재 배치를 유지한다.
 
 ### Carve 데이터 흐름과 불변조건
 
@@ -94,13 +98,33 @@ read-only disk mmap
 
 ```text
 입력 *.jpg
-  → baseline Decoder 구성
-  → 실패 시 header hypothesis
-  → byte substitution/deletion/insertion 또는 bit resync
-  → 선택된 decode의 MCU placement
-  → JPEG 렌더와 action 분류
-  → report.csv
+  → engine façade에서 source byte 읽기
+  → single_best의 baseline Decoder 구성 또는 header hypothesis
+  → entropy의 byte substitution/deletion/insertion 또는 bit resync
+  → 선택된 decode에 placement 정확히 1회
+  → output-neutral immutable SingleBestResult
+  → legacy_output의 JPEG encoding 또는 원본 byte 보존
+  → CLI report.csv
 ```
+
+reconstruction 내부 의존은 `engine → single_best → {header_hypotheses, entropy, placement, metrics}`와
+`engine → legacy_output → single_best` 방향이다. `entropy`는 baseline decoder와 placement만, header
+hypothesis는 baseline decoder·entropy·metrics만 사용한다. placement와 metrics는 orchestration이나 output
+writer를 import하지 않고 JPEG decoder도 reconstruction을 import하지 않아 순환하지 않는다.
+
+`SingleBestResult`는 action, 입력 byte, write-protected RGB, immutable 표준 `Mapping` 호환 info와 DC tuple을
+포함한 segment snapshot을 출력 경로와 무관하게 보존한다. mutable 입력 array·mapping·DC와 alias되지 않고
+원본과 pickle round-trip 결과 모두 NumPy write flag를 다시 켤 수 없는 byte-backed snapshot이다. legacy writer만 반환 경계에서 info를 mutable dict로 복원하고 action에 따라
+재인코딩 또는 원본 byte를 저장한다. 이 내부 계약은 현행 single-best 계산 결과의 전달 경계이며 T-0004
+forensic record/schema를 대체하거나 아직 채우지 않는다.
+
+CLI worker 예외도 원본 byte를 `ERROR` `SingleBestResult`로 snapshot한 뒤 같은 legacy writer에 전달한다.
+원본 읽기나 ERROR 저장 자체가 실패해도 worker가 예외를 전파하지 않는 기존 격리는 유지한다.
+
+info는 이미 frozen wrapper인 입력도 재귀적으로 다시 snapshot하고 `bytearray`·`memoryview`를 bytes로,
+set을 frozenset으로 정규화한다. 지원하지 않는 mutable/custom 값과 문자열이 아닌 mapping key는 생성 시
+거부한다. `SegmentSnapshot`도 직접 생성된 instance를 포함해 MCU·bit를 int, DC predictor를 길이 3의 int
+tuple로 다시 정규화한다.
 
 현재 복구 설계는 다음 불변조건을 유지한다.
 
@@ -266,11 +290,10 @@ disk의 observed byte와 절대 offset
 표시·보정으로 만든 값(`generated`)을 분리한다. disk byte, object raw byte, destuff 전후 bit, virtual edit
 작업 bit와 MCU/block 위치 사이의 변환을 추적하고, placement가 source 좌표를 바꾸지 않게 한다.
 
-### 계획된 책임 분리
+### 남은 계획된 책임
 
 | Planned 영역 | 목표 | 최초 담당 Task |
 |---|---|---|
-| reconstruction 책임 분리 | 현행 single-best 동작을 보존한 engine 분해 | T-0005 |
 | forensic artifact 출력 | 현행 결과와 근거를 재감사 가능한 record로 저장 | T-0006 |
 | boundary/header N-best | 복수 경계·header 후보 유지 | T-0007 |
 | entropy beam과 validity | 복수 resync, block/component validity | T-0008 |
@@ -278,7 +301,8 @@ disk의 observed byte와 절대 offset
 | `render`와 enhancement 분리 | artifact에서 preview를 재생성하고 생성값을 분리 | T-0010 |
 
 `work/`, case와 stage run, strict JSON/JSONL은 T-0003, forensic domain·record와 coefficient NPZ는
-T-0004에서 구현했다. 위 Planned 책임은 이 기반에 기존 engine을 연결하고 실제 값을 채우는 후속 범위다.
+T-0004, 현행 engine의 output-neutral single-best 계산과 legacy writer 분리는 T-0005에서 구현했다. 위
+Planned 책임은 이 기반에 실제 forensic 값을 채우고 N-best·rendering으로 확장하는 후속 범위다.
 
 `rendering` 같은 목표 이름이 문서에 나타나더라도 현재 package에 해당 구현이 있다는 뜻은 아니다. Current
 artifact와 상태 모델은 [artifacts.md](artifacts.md), 남은 검증 계획은 [evaluation.md](evaluation.md)를

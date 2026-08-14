@@ -1,0 +1,14 @@
+{
+  "cli_normalized_snapshot_sha256": "becf2619a73034728d9c096ba68ac54189d26f1e194987c85e79d566867db89c",
+  "cli_summary_snapshot_sha256": "ba4c1e89ad619c1a3c83f73c389ef79daab6198fc47575e5ece90f298e1d0cf8",
+  "normalized_snapshot_sha256": "d16d2092beb65ba6aa723d6c9d9d54d37ed839f4ef42cd66c467c1e9738bdf95",
+  "output_sha256": {
+    "clean": "a669293446bea46e216eb47e4aea3aec10610cea80d7b71af6271d79bf4d1e17",
+    "entropy_recovered": "04c62696b63dced8e698ea5eb952217d105ec875095db8a67824e600ff2b5e8c",
+    "failed": "ddc6d7ab521638ee6d6bbd4cde6df50bfa45363c00dcd7dc174e9c00cdcd2964",
+    "header_recovered": "a47fb760e9290a93046735aeef868c7d3bb9897d40cf4c578a3e3df6789de3ad",
+    "skip_undecodable": "cee221e76076336aa6e05563034223cbb11991bf6dd36a945aa05ef12f3ab2dd",
+    "spatial_recovered": "db8d02d8010a00fbb3d7680bc38063601aa4fda896cb30164e9d3c3cb07a6f75"
+  },
+  "worker_error_output_sha256": "3462e4ef716a063b75ad9c94c4797c13cf328b2780e1ecbcf36baa624198e854"
+}

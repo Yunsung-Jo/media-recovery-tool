@@ -14,7 +14,17 @@ def test_work_error_copies_original(tmp_path, monkeypatch):
     def boom(*args, **kwargs):
         raise RuntimeError('decode blew up')
 
+    materialize = reconstruct.legacy_output.materialize_result
+    calls = []
+
+    def materialize_spy(result, src_path, out_dir, *, quality=95):
+        calls.append((result, src_path, out_dir, quality))
+        return materialize(
+            result, src_path, out_dir, quality=quality)
+
     monkeypatch.setattr(reconstruct, 'recover_file', boom)
+    monkeypatch.setattr(
+        reconstruct.legacy_output, 'materialize_result', materialize_spy)
 
     name, action, info, err = reconstruct._work(
         src, tmp_path, quality=95, time_budget=None, near=300000, full=True)
@@ -23,6 +33,13 @@ def test_work_error_copies_original(tmp_path, monkeypatch):
     assert err == 'decode blew up'
     copied = tmp_path / 'error' / '0xBADF00D.jpg'
     assert copied.read_bytes() == raw
+    assert len(calls) == 1
+    result, src_path, out_dir, quality = calls[0]
+    assert result.action == 'ERROR'
+    assert result.source_bytes == raw
+    assert src_path == src
+    assert out_dir == tmp_path
+    assert quality == 95
 
 
 def test_report_counts_global_only_spatial_correction(

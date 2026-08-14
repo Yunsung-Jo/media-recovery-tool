@@ -11,6 +11,8 @@ from pathlib import Path
 from tqdm import tqdm
 
 from media_recovery.reconstruction.engine import recover_file
+from media_recovery.reconstruction import legacy_output
+from media_recovery.reconstruction.single_best import SingleBestResult
 
 
 def _work(path: Path, out_dir: Path, quality: int, time_budget, near: int, full: bool):
@@ -22,9 +24,9 @@ def _work(path: Path, out_dir: Path, quality: int, time_budget, near: int, full:
         return path.name, action, info, None
     except Exception as e:  # noqa: BLE001 — 배치 견고성 위해 모든 예외 포착
         try:
-            err_path = out_dir / 'error' / path.name
-            err_path.parent.mkdir(parents=True, exist_ok=True)
-            err_path.write_bytes(path.read_bytes())
+            result = SingleBestResult(
+                'ERROR', path.read_bytes(), None, {}, ())
+            legacy_output.materialize_result(result, path, out_dir)
         except Exception:  # noqa: BLE001 — 복사 실패해도 분류·기록은 유지
             pass
         return path.name, 'ERROR', {}, str(e)

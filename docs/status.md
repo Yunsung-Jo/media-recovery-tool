@@ -18,7 +18,7 @@
 | package | `src/media_recovery` |
 | CLI | `media-recovery carve`, `reconstruct`, `enhance` |
 | Python 지원 | `>=3.10` |
-| 자동 회귀 기준선 | 2026-08-14, Python 3.12.13에서 346개 통과 |
+| 자동 회귀 기준선 | 2026-08-14, Python 3.12.13에서 363개 통과 |
 | 현재 출력 | command별 디렉터리 트리, JPEG/AVI와 CSV |
 | case/run 기반 | 내부 Python API, schema 1.0과 completion seal 구현; 기존 CLI에는 미연결 |
 | forensic object/result/candidate·NPZ | schema 1.0과 내부 Python reader/writer 구현; 기존 CLI에는 미연결 |
@@ -28,8 +28,9 @@ T-0001은 package와 CLI 경로를 이전했지만 알고리즘, 여섯 action�
 T-0002는 Python code를 변경하지 않고 문서 정본을 Current/Planned로 나누고 기존 `architecture.md`와
 `current-state.md`를 완전히 이관해 삭제했다. T-0003은 격리된 `work/`·case/run persistence, strict
 JSON/JSONL과 legacy inventory를 구현했다. T-0004는 forensic domain과 object/result/candidate record,
-결정적 coefficient·validity NPZ schema를 기존 CLI와 격리된 내부 API로 구현했다. 다음 계획 작업은
-T-0005다.
+결정적 coefficient·validity NPZ schema를 기존 CLI와 격리된 내부 API로 구현했다. T-0005는 현행
+single-best 동작을 보존하며 reconstruction engine을 entropy·placement·선택·legacy writer와 façade로
+분리하고 output-neutral immutable 내부 결과를 추가했다. 다음 계획 작업은 T-0006이다.
 
 ### 확인된 기능 범위
 
@@ -40,6 +41,7 @@ T-0005다.
 - DC carry/0 reset 후보, hole 보존과 잔여 MCU placement
 - DHT/DQT/SOF/SOS 손상 header의 구조 gate 기반 후보 재구성
 - 수락한 편집·resync 절단점 기반 MCU band와 상단 고정 전역 행 위상 보정
+- output-neutral `SingleBestResult`의 source byte·read-only RGB·info·segment snapshot과 기존 action writer
 - 선택적 Exif thumbnail 참조 밀림·색 cast 후처리와 self-check
 - action 6종, `report.csv`, `report_thumbref.csv` 출력
 - source SHA-256 case 등록, stage parent lineage, lifecycle·resume와 completed run file seal
@@ -51,12 +53,19 @@ T-0005다.
 
 ### 현재 검증 경계
 
-- 전체 자동 테스트 346개가 통과한다. T-0003은 case/run과 artifact I/O test 40개, T-0004는 domain,
+- 전체 자동 테스트 363개가 통과한다. T-0003은 case/run과 artifact I/O test 40개, T-0004는 domain,
   Draft 2020-12 schema, JSONL/NPZ·manifest·atomicity와 completion test 58개를 추가했다. T-0004 회귀에는
   source 좌표 중복·case source 밖 span, object parent 미해소·cycle, 부모 discovery object 미해소,
   깊은 parent chain, filesystem path alias를 포함한 owner별 NPZ 중복, 비정규 version·NPY header,
   intervention 중복, unsafe/control/NTFS ADS path, symlink와 owner-stage 불일치 거부 및 decode segment
   reference의 tuple snapshot이 포함된다.
+- T-0005는 합성 fixture의 7개 action 경로, `recover()` RGB·segment·stats, 출력 JPEG/원본 SHA-256을
+  리팩터링 전 snapshot으로 고정해 이후 동일함을 확인한다. 공개 façade·immutable result alias 차단,
+  entropy/placement·single-best/writer 경계, header placement 1회, action routing, import cycle 부재와 실제
+  CLI `-j 1`/Windows spawn `-j 2` 동등성도 자동 검증한다. 내부 info의 표준 `Mapping` 동작과
+  `info_copy()`의 strict JSON artifact handoff, NumPy write flag 재활성화 거부, pre-frozen wrapper와
+  segment의 재-snapshot도 회귀로 고정했다. 별도 CLI summary snapshot은 여섯 action, worker error,
+  placement와 header 콘솔 요약을 모두 포함하며 worker ERROR도 실제 legacy writer 경유를 검증한다.
 - T-0001 합성 fixture에서 package 이전 전후 파일 집합, artifact hash, action과 CSV 안정 필드가 같았다.
 - v8 전역 행 placement는 고난도·구조·정상 고정 표본을 통과했지만 `output_c3/jpeg` 970개를 최신 code로
   다시 전수 처리하지 않았다.
@@ -107,7 +116,8 @@ T-0005다.
 
 8. **현재 CLI와 forensic artifact 연결 부족**
    case/run과 forensic domain·NPZ 기반은 input hash, version, 좌표, coefficient·validity, placement와
-   lineage를 표현할 수 있지만 기존 CLI와 reconstruction engine이 아직 사용하지 않는다. 따라서 현재
+   lineage를 표현할 수 있지만 기존 CLI와 reconstruction engine이 아직 사용하지 않는다. T-0005의
+   `SingleBestResult`는 계산과 legacy 저장을 분리했지만 T-0004 record/schema로 변환하지 않는다. 따라서 현재
    output directory와 CSV에는 source bit span과 candidate evidence가 없고 같은 이름의 output directory
    재사용은 이전 파일을 남길 수 있다. 현재 model이 복수 candidate를 표현한다고 해서 N-best algorithm이
    구현된 것도 아니다.
@@ -125,12 +135,11 @@ T-0005다.
 
 | 순서 | Planned Task | 목표 | 이 Task 전에는 없는 것 |
 |---|---|---|---|
-| 1 | T-0005 | 현행 single-best 동작을 보존한 engine 책임 분리 | 새 algorithm이나 결과 개선 |
-| 2 | T-0006 | 현재 single-best 결과의 forensic artifact 출력 | N-best 선택 |
-| 3 | T-0007 | object boundary와 header N-best | entropy beam |
-| 4 | T-0008 | entropy beam search와 component validity | thumbnail 판단 사용 |
-| 5 | T-0009 | 반복 placement와 evidence 평가 | AI enhancement |
-| 6 | T-0010 | artifact 기반 preview와 thumbnail enhancement 분리 | enhancement를 source로 주장 |
+| 1 | T-0006 | 현재 single-best 결과의 forensic artifact 출력 | N-best 선택 |
+| 2 | T-0007 | object boundary와 header N-best | entropy beam |
+| 3 | T-0008 | entropy beam search와 component validity | thumbnail 판단 사용 |
+| 4 | T-0009 | 반복 placement와 evidence 평가 | AI enhancement |
+| 5 | T-0010 | artifact 기반 preview와 thumbnail enhancement 분리 | enhancement를 source로 주장 |
 
 T-0003은 `work/`·run 구조와 접근 가능한 legacy inventory를 함께 검토했다. `/output*/`는 현행 CLI의 기본
 출력 보호, `/shift_experiments*/`는 미이관 외부 자료의 우발 추적 방지를 위해 각각 유지했다. `/work/`,
